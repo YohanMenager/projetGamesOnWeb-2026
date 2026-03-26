@@ -1,4 +1,5 @@
 import Bot from "./Bot.js";
+import Obstacle from "./Objets/Obstacle.js";
 
 // ====================== INIT ======================
 var canvas = document.getElementById("renderCanvas");
@@ -11,10 +12,11 @@ var min = -sceneSize / 2 + 4;
 var max = sceneSize / 2 - 4;
 
 //pour la navigation
-var navigationPlugin = null;
+window.navigationPlugin = null;
 var crowd = null;
 var navMeshDebug = null;
 
+var isPreparationPhase = true;   // Phase de préparation (placement des bots, etc.)
 // ====================== CREATE SCENE ======================
 function createScene(engine, canvas) {
     var scene = new BABYLON.Scene(engine);
@@ -23,12 +25,12 @@ function createScene(engine, canvas) {
     var camera = new BABYLON.ArcRotateCamera(
         "topCamera",
         BABYLON.Tools.ToRadians(90),   // alpha
-        BABYLON.Tools.ToRadians(0),    // beta (presque à plat)
+        BABYLON.Tools.ToRadians(45),    // beta (presque à plat)
         45,                            // distance
         new BABYLON.Vector3(0, 0, 0),
         scene
     );
-    // camera.attachControl(canvas, true);
+    camera.attachControl(canvas, true);
     camera.lowerRadiusLimit = 20;
     camera.upperRadiusLimit = 80;
     camera.upperBetaLimit = BABYLON.Tools.ToRadians(80);
@@ -46,6 +48,20 @@ function createScene(engine, canvas) {
     engine.runRenderLoop(() => {
         scene.render();
     });
+
+    //créer un bouton pour alterner entre phase de préparation et phase de simulation
+    const phaseButton = document.getElementById("phaseButton");
+    phaseButton.addEventListener("click", () => {
+        if (isPreparationPhase) {
+            startSimulation();
+            phaseButton.innerHTML = "Passer en préparation";
+        } else {
+            startPreparation();
+            phaseButton.innerHTML = "Passer en simulation";
+        }
+    });
+
+
 
     return scene;
 }
@@ -73,8 +89,23 @@ async function initGame(scene) {
 
     // Mise à jour (crowd + bots)
     scene.registerBeforeRender(() => {
-        if (crowd) crowd.update(scene.getEngine().getDeltaTime() / 1000);
+        // Si on est en préparation, on NE MET RIEN à jour (ni le crowd, ni les meshes)
+        if (isPreparationPhase) 
+        {
+            scene.bots.forEach(bot => {
+                bot.stop(); // On stoppe les bots
+            });
+            return;
+        }
+
+        // Sinon, on update le cerveau (crowd) et les corps (meshes)
+        if (crowd) {
+            // DeltaTime en secondes
+            crowd.update(engine.getDeltaTime() / 1000);
+        }
+
         scene.bots.forEach(bot => {
+            bot.setTarget(new BABYLON.Vector3(15, 0.8, 0)); // On redéfinit la cible à chaque frame pour éviter les problèmes de pathfinding
             if (bot.update) bot.update(scene);
         });
     });
@@ -105,7 +136,7 @@ function createLevel(scene) {
     new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, scene);
 
     // Murs extérieurs
-    const wallThickness = 1;
+    const wallThickness = 2;
     const half = sceneSize / 2;
 
     function createWall(name, width, depth, x, z) {
@@ -123,17 +154,38 @@ function createLevel(scene) {
 
     // === Labyrinthe simple pour le premier niveau ===
     // Quelques murs intérieurs pour créer des chemins
-    createWall("inner1", 12, 1, -8, -6);
+    /*createWall("inner1", 12, 1, -8, -6);
     createWall("inner2", 1, 15, -12, 4);
     createWall("inner3", 10, 1, 5, -10);
     createWall("inner4", 1, 12, 10, 8);
-    createWall("inner5", 18, 1, -5, 12);
+    createWall("inner5", 18, 1, -5, 12);*/
+    // deux murs, au milieu avec un trou entre les deux pour passer. 
+    createWall("inner1", 1, 12, 0, -15);
+    createWall("inner2", 1, 24, 0, 10);
 
     // Sortie (zone verte à droite)
     const exitZone = BABYLON.MeshBuilder.CreateBox("exitZone", { width: 6, height: 0.1, depth: 8 }, scene);
     exitZone.position.set(15, 0.05, 0);
     exitZone.material = exitMat;
     exitZone.isPickable = false;
+
+    //this.obstacles = [];
+    var obstacles = [];
+    obstacles.push(new Obstacle(
+        scene,
+        new BABYLON.Vector3(2, 0, -5),
+        { width: 2.5, height: 1.8, depth: 10 },
+        12,                    // masse (plus c'est élevé = plus lourd à pousser)
+        new BABYLON.Color3(0.7, 0.5, 0.3)
+    ));
+
+    // obstacles.push(new Obstacle(
+    //     scene,
+    //     new BABYLON.Vector3(8, 0, 6),
+    //     { width: 3, height: 1.5, depth: 1.5 },
+    //     6,
+    //     new BABYLON.Color3(0.55, 0.4, 0.25)
+    // ));
 
     // Optionnel : un petit drapeau ou lumière pour voir la sortie
     const exitLight = new BABYLON.PointLight("exitLight", new BABYLON.Vector3(15, 5, 0), scene);
@@ -166,14 +218,15 @@ function createRobots(scene, count) {
             instance, 
             i, 
             0.12,      // speed
-            0.25,      // scaling
+            1,      // scaling
             scene,
-            navigationPlugin,   // ← important
-            crowd               // ← important
+            window.navigationPlugin,   // ← important
+            crowd,               // ← important
+            new BABYLON.Vector3(15, 0.8, 0)//objectif initial = sortie
         );
 
         // Objectif initial = sortie (à droite)
-        newBot.setTarget(new BABYLON.Vector3(15, 0.8, 0));
+        //newBot.setTarget(new BABYLON.Vector3(15, 0.8, 0));
 
         scene.bots.push(newBot);
     }
@@ -237,7 +290,7 @@ function hideLoadingView() {
 async function initNavigation(scene) {
     await Recast();
     // Création du plugin Recast
-    navigationPlugin = new BABYLON.RecastJSPlugin();
+    window.navigationPlugin = new BABYLON.RecastJSPlugin();
     
     // Paramètres du navmesh (à ajuster selon ton niveau)
     const navMeshParameters = {
@@ -254,7 +307,8 @@ async function initNavigation(scene) {
         maxVertsPerPoly: 6,
         detailSampleDist: 6,
         detailSampleMaxError: 1,
-        borderSize: 1
+        borderSize: 1,
+        tileSize: 64
     };
 
     // On utilise tous les meshes "walkable" (sol + murs intérieurs si besoin)
@@ -266,11 +320,11 @@ async function initNavigation(scene) {
     });
 
     // Création du navmesh
-    navigationPlugin.createNavMesh(walkableMeshes, navMeshParameters, (navmeshData) => {
+    window.navigationPlugin.createNavMesh(walkableMeshes, navMeshParameters, (navmeshData) => {
         console.log("NavMesh créé avec succès !");
         
         // Debug optionnel : afficher le navmesh en vert semi-transparent
-        navMeshDebug = navigationPlugin.createDebugNavMesh(scene);
+        navMeshDebug = window.navigationPlugin.createDebugNavMesh(scene);
         navMeshDebug.material = new BABYLON.StandardMaterial("navDebugMat", scene);
         navMeshDebug.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
         navMeshDebug.material.alpha = 0.15;
@@ -278,5 +332,36 @@ async function initNavigation(scene) {
     });
 
     // Création du Crowd (gère plusieurs agents en même temps)
-    crowd = navigationPlugin.createCrowd(20, 0.4, scene);  // max 20 agents, radius 0.4
+    crowd = window.navigationPlugin.createCrowd(20, 0.4, scene);  // max 20 agents, radius 0.4
+    //mettre le crowd en pause au début, on le lancera seulement quand la simulation commencera
+}
+
+function startPreparation() {
+    isPreparationPhase = true;
+    enablePlayerInteractions();
+    console.log("Préparation : Agents stoppés");
+}
+
+function startSimulation() {
+    isPreparationPhase = false;
+    disablePlayerInteractions();
+    console.log("Simulation : Agents en route");
+}
+
+function enablePlayerInteractions() {
+    // pour les obstacles :
+    scene.meshes.forEach(mesh => {
+        if (mesh.name.startsWith("obstacle")) {
+            mesh.isPickable = true;  // Permet de cliquer et drag l'obstacle
+        }
+    });
+}
+
+function disablePlayerInteractions() {
+    // pour les obstacles :
+    scene.meshes.forEach(mesh => {
+        if (mesh.name.startsWith("obstacle")) {
+            mesh.isPickable = false;  // Empêche de cliquer et drag l'obstacle
+        }
+    });
 }

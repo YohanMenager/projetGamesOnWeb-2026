@@ -1,22 +1,23 @@
 export default class Bot {
-    constructor(botMesh, id, speed, scaling, scene, navigationPlugin, crowd) {
+    constructor(botMesh, id, speed, scaling, scene, navigationPlugin, crowd, objective) {
         this.botMesh = botMesh;
         this.id = id;
         this.scene = scene;
         this.navigationPlugin = navigationPlugin;
         this.crowd = crowd;
         this.speed = speed || 0.12;
-        this.scaling = scaling || 0.25;
+        this.scaling = scaling || 1.0;
 
         this.agentIndex = -1;        // ← On stocke l'INDEX (nombre) maintenant
         this.target = null;
+        this.objective = objective;
 
         botMesh.Bot = this;
 
         this.botMesh.scaling = new BABYLON.Vector3(this.scaling, this.scaling, this.scaling);
 
         // Physique légère (optionnelle avec Recast)
-        if (!botMesh.aggregate) {
+        /*if (!botMesh.aggregate) {
             botMesh.aggregate = new BABYLON.PhysicsAggregate(
                 botMesh,
                 BABYLON.PhysicsShapeType.BOX,
@@ -25,12 +26,13 @@ export default class Bot {
             );
             botMesh.aggregate.body.setLinearDamping(1.8);
             botMesh.aggregate.body.setAngularDamping(2.0);
-        }
+        }*/
     }
 
     // Appelée chaque frame dans registerBeforeRender
     update(scene) {
         if (this.agentIndex < 0 || !this.crowd) return;
+
 
         // Récupérer la position via l'index
         const agentPos = this.crowd.getAgentPosition(this.agentIndex);
@@ -80,6 +82,14 @@ export default class Bot {
 
         // Envoyer vers la cible
         this.crowd.agentGoto(this.agentIndex, targetPosition);
+    }
+
+    stop() {
+        if (this.agentIndex >= 0) {
+            this.crowd.removeAgent(this.agentIndex);
+            this.agentIndex = -1;
+            console.log(`Bot ${this.id} → agent stoppé`);
+          }  
     }
 
     // Pour changer de cible plus tard
