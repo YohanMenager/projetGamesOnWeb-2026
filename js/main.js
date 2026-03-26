@@ -10,6 +10,11 @@ var sceneSize = 40;           // Taille du niveau (plus grand pour un vrai labyr
 var min = -sceneSize / 2 + 4;
 var max = sceneSize / 2 - 4;
 
+//pour la navigation
+var navigationPlugin = null;
+var crowd = null;
+var navMeshDebug = null;
+
 // ====================== CREATE SCENE ======================
 function createScene(engine, canvas) {
     var scene = new BABYLON.Scene(engine);
@@ -47,45 +52,35 @@ function createScene(engine, canvas) {
 
 // ====================== INIT GAME ======================
 async function initGame(scene) {
-    // Désactiver le loading UI par défaut de Babylon (recommandé)
-    engine.loadingUI = null;                    // Option 1 : désactiver complètement
-    // OU
-    // engine.displayLoadingUI = () => {};      // Option 2 : si tu veux garder le système
+    engine.displayLoadingUI = function() {};
 
     console.log("Chargement de Havok...");
+    const havokInstance = await HavokPhysics();
+    const hk = new BABYLON.HavokPlugin(true, havokInstance);
+    scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), hk);
 
-    try {
-        const havokInstance = await HavokPhysics();   // ← attends que Havok soit chargé
+    console.log("Havok chargé");
 
-        const hk = new BABYLON.HavokPlugin(true, havokInstance);
-        scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), hk);
+    createLevel(scene);
+    createLights(scene);
 
-        console.log("Havok chargé avec succès !");
-        engine.loadingUIBackgroundColor = "transparent";
-        /*engine.loadingUIText = "";
-        // ou simplement :
-        engine.displayLoadingUI = function() {};*/
+    // === INITIALISATION RECAST ===
+    console.log("Création du Navigation Mesh avec Recast...");
+    await initNavigation(scene);
 
-        // Maintenant on crée le niveau et les robots
-        createLevel(scene);
-        createLights(scene);
-        scene.bots = [];
-        createRobots(scene, 8);
+    scene.bots = [];
+    createRobots(scene, 8);
 
-        // Mise à jour des bots
-        scene.registerBeforeRender(() => {
-            scene.bots.forEach(bot => {
-                if (bot.update) bot.update(scene);
-            });
+    // Mise à jour (crowd + bots)
+    scene.registerBeforeRender(() => {
+        if (crowd) crowd.update(scene.getEngine().getDeltaTime() / 1000);
+        scene.bots.forEach(bot => {
+            if (bot.update) bot.update(scene);
         });
-   
-        hideLoadingView();     
+    });
 
-        console.log("Niveau 1 prêt - Robots en place !");
-
-    } catch (error) {
-        console.error("Erreur lors du chargement de Havok :", error);
-    }
+    hideLoadingView();
+    console.log("Niveau prêt avec pathfinding Recast !");
 }
 
 // ====================== CRÉATION DU NIVEAU ======================
@@ -155,35 +150,30 @@ function createRobots(scene, count) {
 
     const robotMaterial = new BABYLON.StandardMaterial("robotMaterial", scene);
     robotMaterial.diffuseColor = new BABYLON.Color3(0.9, 0.3, 0.1);
-    robotMaterial.specularColor = new BABYLON.Color3(0.4, 0.4, 0.4);
     botMaster.material = robotMaterial;
 
     for (let i = 0; i < count; i++) {
         const instance = botMaster.createInstance("robot_" + i);
 
         instance.position.set(
-            -sceneSize / 2 + 4 + Math.random() * 5,
+            -sceneSize / 2 + 5 + Math.random() * 6,
             0.8,
-            -10 + Math.random() * 20
+            -12 + Math.random() * 24
         );
 
-        // === IMPORTANT : Physique pour que les bots puissent bouger ===
-        instance.aggregate = new BABYLON.PhysicsAggregate(
+        // On passe navigationPlugin et crowd au constructeur
+        const newBot = new Bot(
             instance, 
-            BABYLON.PhysicsShapeType.BOX, 
-            { mass: 2, restitution: 0.0, friction: 0.8 }, 
-            scene
+            i, 
+            0.12,      // speed
+            0.25,      // scaling
+            scene,
+            navigationPlugin,   // ← important
+            crowd               // ← important
         );
 
-        // Freinage pour qu'ils ne glissent pas comme sur de la glace
-        instance.aggregate.body.setLinearDamping(1.5);
-        instance.aggregate.body.setAngularDamping(2.0);
-
-        const newBot = new Bot(instance, i, 0.12, 0.3, scene);  // j'ai augmenté un peu la vitesse
-
-        if (newBot.setTarget) {
-            newBot.setTarget(new BABYLON.Vector3(15, 0, 0));
-        }
+        // Objectif initial = sortie (à droite)
+        newBot.setTarget(new BABYLON.Vector3(15, 0.8, 0));
 
         scene.bots.push(newBot);
     }
@@ -243,4 +233,50 @@ function hideLoadingView() {
         loadingDiv.style.display = "none";
         console.log("Loading view caché");
     }
+}
+async function initNavigation(scene) {
+    await Recast();
+    // Création du plugin Recast
+    navigationPlugin = new BABYLON.RecastJSPlugin();
+    
+    // Paramètres du navmesh (à ajuster selon ton niveau)
+    const navMeshParameters = {
+        cs: 0.2,          // cell size
+        ch: 0.2,          // cell height
+        walkableSlopeAngle: 35,
+        walkableHeight: 1.0,
+        walkableClimb: 0.5,
+        walkableRadius: 0.4,
+        maxEdgeLen: 12,
+        maxSimplificationError: 1.3,
+        minRegionArea: 8,
+        mergeRegionArea: 20,
+        maxVertsPerPoly: 6,
+        detailSampleDist: 6,
+        detailSampleMaxError: 1,
+        borderSize: 1
+    };
+
+    // On utilise tous les meshes "walkable" (sol + murs intérieurs si besoin)
+    const walkableMeshes = [];
+    scene.meshes.forEach(mesh => {
+        if (mesh.name === "ground" || mesh.name.startsWith("inner")) {
+            walkableMeshes.push(mesh);
+        }
+    });
+
+    // Création du navmesh
+    navigationPlugin.createNavMesh(walkableMeshes, navMeshParameters, (navmeshData) => {
+        console.log("NavMesh créé avec succès !");
+        
+        // Debug optionnel : afficher le navmesh en vert semi-transparent
+        navMeshDebug = navigationPlugin.createDebugNavMesh(scene);
+        navMeshDebug.material = new BABYLON.StandardMaterial("navDebugMat", scene);
+        navMeshDebug.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
+        navMeshDebug.material.alpha = 0.15;
+        navMeshDebug.position.y += 0.05; // légèrement au-dessus du sol
+    });
+
+    // Création du Crowd (gère plusieurs agents en même temps)
+    crowd = navigationPlugin.createCrowd(20, 0.4, scene);  // max 20 agents, radius 0.4
 }
