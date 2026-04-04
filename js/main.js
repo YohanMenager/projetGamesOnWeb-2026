@@ -1,5 +1,7 @@
 import Bot from "./Bot.js";
 import Obstacle from "./Objets/Obstacle.js";
+import Bloc from "./Objets/Bloc.js";
+import Porte from "./Objets/Porte.js";
 
 // ====================== INIT ======================
 var canvas = document.getElementById("renderCanvas");
@@ -16,7 +18,7 @@ window.navigationPlugin = null;
 var crowd = null;
 var navMeshDebug = null;
 
-var isPreparationPhase = true;   // Phase de préparation (placement des bots, etc.)
+window.isPreparationPhase = true;   // Phase de préparation (placement des bots, etc.)
 // ====================== CREATE SCENE ======================
 function createScene(engine, canvas) {
     var scene = new BABYLON.Scene(engine);
@@ -52,7 +54,7 @@ function createScene(engine, canvas) {
     //créer un bouton pour alterner entre phase de préparation et phase de simulation
     const phaseButton = document.getElementById("phaseButton");
     phaseButton.addEventListener("click", () => {
-        if (isPreparationPhase) {
+        if (window.isPreparationPhase) {
             startSimulation();
             phaseButton.innerHTML = "Passer en préparation";
         } else {
@@ -90,7 +92,7 @@ async function initGame(scene) {
     // Mise à jour (crowd + bots)
     scene.registerBeforeRender(() => {
         // Si on est en préparation, on NE MET RIEN à jour (ni le crowd, ni les meshes)
-        if (isPreparationPhase) 
+        if (window.isPreparationPhase) 
         {
             scene.bots.forEach(bot => {
                 bot.stop(); // On stoppe les bots
@@ -105,7 +107,9 @@ async function initGame(scene) {
         }
 
         scene.bots.forEach(bot => {
-            bot.setTarget(new BABYLON.Vector3(15, 0.8, 0)); // On redéfinit la cible à chaque frame pour éviter les problèmes de pathfinding
+            if (!bot.attachedBloc) { // Si le bot n'est pas attaché à un bloc
+                bot.setTarget(bot.objective);
+            }
             if (bot.update) bot.update(scene);
         });
     });
@@ -114,122 +118,92 @@ async function initGame(scene) {
     console.log("Niveau prêt avec pathfinding Recast !");
 }
 
-// ====================== CRÉATION DU NIVEAU ======================
 function createLevel(scene) {
-    // Matériaux
-    const groundMat = new BABYLON.PBRMaterial("groundMat", scene);
-    groundMat.albedoColor = new BABYLON.Color3(0.15, 0.15, 0.2);
-    groundMat.roughness = 0.8;
-
-    const wallMat = new BABYLON.PBRMaterial("wallMat", scene);
-    wallMat.albedoColor = new BABYLON.Color3(0.6, 0.6, 0.7);
-    wallMat.roughness = 0.9;
-
-    const exitMat = new BABYLON.PBRMaterial("exitMat", scene);
-    exitMat.albedoColor = new BABYLON.Color3(0.1, 0.8, 0.2);
-    exitMat.emissiveColor = new BABYLON.Color3(0.1, 0.6, 0.15);
-
     // Sol
     const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: sceneSize, height: sceneSize }, scene);
+    const groundMat = new BABYLON.PBRMaterial("gMat", scene);
+    groundMat.albedoColor = new BABYLON.Color3(0.1, 0.1, 0.12);
     ground.material = groundMat;
-    ground.receiveShadows = true;
     new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, scene);
 
-    // Murs extérieurs
-    const wallThickness = 2;
-    const half = sceneSize / 2;
-
-    function createWall(name, width, depth, x, z) {
-        const wall = BABYLON.MeshBuilder.CreateBox(name, { width, height: 2, depth }, scene);
-        wall.position.set(x, 1, z);
-        wall.material = wallMat;
+    // Fonction utilitaire pour les murs
+    const createWall = (name, w, d, x, z) => {
+        const wall = BABYLON.MeshBuilder.CreateBox(name, { width: w, height: 3, depth: d }, scene);
+        wall.position.set(x, 1.5, z);
         new BABYLON.PhysicsAggregate(wall, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, scene);
         return wall;
-    }
+    };
 
-    createWall("wallNorth", sceneSize + wallThickness, wallThickness, 0, -half);
-    createWall("wallSouth", sceneSize + wallThickness, wallThickness, 0, half);
-    createWall("wallWest", wallThickness, sceneSize + wallThickness, -half, 0);
-    createWall("wallEast", wallThickness, sceneSize + wallThickness, half, 0);
+    // Murs extérieurs
+    createWall("wN", sceneSize, 1, 0, -sceneSize / 2);
+    createWall("wS", sceneSize, 1, 0, sceneSize / 2);
+    createWall("wW", 1, sceneSize, -sceneSize / 2, 0);
+    createWall("wE", 1, sceneSize, sceneSize / 2, 0);
 
-    // === Labyrinthe simple pour le premier niveau ===
-    // Quelques murs intérieurs pour créer des chemins
-    /*createWall("inner1", 12, 1, -8, -6);
-    createWall("inner2", 1, 15, -12, 4);
-    createWall("inner3", 10, 1, 5, -10);
-    createWall("inner4", 1, 12, 10, 8);
-    createWall("inner5", 18, 1, -5, 12);*/
-    // deux murs, au milieu avec un trou entre les deux pour passer. 
-    createWall("inner1", 1, 12, 0, -15);
-    createWall("inner2", 1, 24, 0, 10);
+    // === CRÉATION DES 3 COULOIRS (Séparateurs horizontaux) ===
+    // On divise l'espace Z en 3 corridors : de -15 à -5, de -5 à 5, et de 5 à 15
+    createWall("inner1", 30, 1, -5, -5); 
+    createWall("inner2", 30, 1, -5, 5);
 
-    // Sortie (zone verte à droite)
-    const exitZone = BABYLON.MeshBuilder.CreateBox("exitZone", { width: 6, height: 0.1, depth: 8 }, scene);
-    exitZone.position.set(15, 0.05, 0);
+    // Sortie commune (Zone verte)
+    const exitZone = BABYLON.MeshBuilder.CreateBox("exitZone", { width: 4, height: 0.1, depth: 30 }, scene);
+    exitZone.position.set(16, 0.05, 0);
+    const exitMat = new BABYLON.StandardMaterial("eMat", scene);
+    exitMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
     exitZone.material = exitMat;
-    exitZone.isPickable = false;
 
-    //this.obstacles = [];
-    var obstacles = [];
-    obstacles.push(new Obstacle(
-        scene,
-        new BABYLON.Vector3(2, 0, -5),
-        { width: 2.5, height: 1.8, depth: 10 },
-        12,                    // masse (plus c'est élevé = plus lourd à pousser)
-        new BABYLON.Color3(0.7, 0.5, 0.3)
-    ));
+    // === PLACEMENT DES OBSTACLES SPÉCIFIQUES ===
 
-    // obstacles.push(new Obstacle(
-    //     scene,
-    //     new BABYLON.Vector3(8, 0, 6),
-    //     { width: 3, height: 1.5, depth: 1.5 },
-    //     6,
-    //     new BABYLON.Color3(0.55, 0.4, 0.25)
-    // ));
+    // 1. Zone du haut : L'OBSTACLE (Draggable par le joueur)
+    // Coordonnées : X=0, Z=-10
+    new Obstacle(scene, new BABYLON.Vector3(0, 0, -12.5), { width: 1, height: 2, depth: 6 }, 20);
+    //murs qui bloquent l'obstacle en place, et empêchent le robot de le contourner
+    createWall("inner3", 1, 5, -1, -7.5);
+    createWall("inner4", 1, 5, 1, -7.5);
+    createWall("inner5", 1, 5, -1, -17.5);
+    createWall("inner6", 1, 5, 1, -17.5);
 
-    // Optionnel : un petit drapeau ou lumière pour voir la sortie
-    const exitLight = new BABYLON.PointLight("exitLight", new BABYLON.Vector3(15, 5, 0), scene);
-    exitLight.intensity = 0.8;
-    exitLight.diffuse = new BABYLON.Color3(0.2, 1, 0.3);
+    // 2. Zone du milieu : LA PORTE (Cliquable par le joueur)
+    // Coordonnées : X=0, Z=0
+    new Porte(scene, new BABYLON.Vector3(0, 0, 0), "player", false, { width: 1, height: 3, depth: 3 });
+    //murs pour la porte, pour l'empêcher de se faire contourner par le robot
+    createWall("inner9", 1, 3, 1, -3);
+    createWall("inner10", 1, 3, -1, 3);
+    createWall("inner11", 1, 3, 1, 3);
+    createWall("inner12", 1, 3, -1, -3);
 
-    console.log("Niveau créé avec sortie à droite.");
+    // 3. Zone du bas : LE BLOC (À pousser par le robot)
+    // On place une zone cible sur le côté pour que le robot pousse le bloc hors du couloir
+    new Bloc(
+        scene, 
+        new BABYLON.Vector3(0, 0, 12.5),       // Position de départ (bloque le passage)
+        new BABYLON.Vector3(5, 0, 12.5),       // Position cible (dans le mur ou un renfoncement)
+        { width: 2, height: 2, depth: 2 },
+    );
+    //murs pour le bloc, pour l'empêcher de se faire contourner par le robot
+    createWall("inner7", 4, 7, 0, 8);
+    createWall("inner8", 4, 7, 0, 17);
 }
 
 // ====================== CRÉATION DES ROBOTS ======================
-function createRobots(scene, count) {
-    const botMaster = BABYLON.MeshBuilder.CreateBox("botMaster", { size: 1.2 }, scene);
-    botMaster.isVisible = false;
+function createRobots(scene) {
+    const botPositions = [
+        new BABYLON.Vector3(-15, 0.8, -10), // Robot 1 (Obstacle)
+        new BABYLON.Vector3(-15, 0.8, 0),   // Robot 2 (Porte)
+        new BABYLON.Vector3(-15, 0.8, 10)   // Robot 3 (Bloc)
+    ];
 
-    const robotMaterial = new BABYLON.StandardMaterial("robotMaterial", scene);
-    robotMaterial.diffuseColor = new BABYLON.Color3(0.9, 0.3, 0.1);
-    botMaster.material = robotMaterial;
-
-    for (let i = 0; i < count; i++) {
-        const instance = botMaster.createInstance("robot_" + i);
-
-        instance.position.set(
-            -sceneSize / 2 + 5 + Math.random() * 6,
-            0.8,
-            -12 + Math.random() * 24
+    botPositions.forEach((pos, i) => {
+        const mesh = BABYLON.MeshBuilder.CreateBox("botMesh_" + i, { size: 1 }, scene);
+        mesh.position = pos;
+        
+        const bot = new Bot(
+            mesh, i, 0.15, 1, scene, 
+            window.navigationPlugin, crowd, 
+            new BABYLON.Vector3(16, 0.8, pos.z) // Cible en face dans son couloir
         );
-
-        // On passe navigationPlugin et crowd au constructeur
-        const newBot = new Bot(
-            instance, 
-            i, 
-            0.12,      // speed
-            1,      // scaling
-            scene,
-            window.navigationPlugin,   // ← important
-            crowd,               // ← important
-            new BABYLON.Vector3(15, 0.8, 0)//objectif initial = sortie
-        );
-
-        // Objectif initial = sortie (à droite)
-        //newBot.setTarget(new BABYLON.Vector3(15, 0.8, 0));
-
-        scene.bots.push(newBot);
-    }
+        scene.bots.push(bot);
+    });
 }
 
 // ====================== UTILITIES ======================
@@ -289,61 +263,39 @@ function hideLoadingView() {
 }
 async function initNavigation(scene) {
     await Recast();
-    // Création du plugin Recast
     window.navigationPlugin = new BABYLON.RecastJSPlugin();
     
-    // Paramètres du navmesh (à ajuster selon ton niveau)
     const navMeshParameters = {
-        cs: 0.2,          // cell size
-        ch: 0.2,          // cell height
-        walkableSlopeAngle: 35,
-        walkableHeight: 1.0,
-        walkableClimb: 0.5,
-        walkableRadius: 0.4,
-        maxEdgeLen: 12,
-        maxSimplificationError: 1.3,
-        minRegionArea: 8,
-        mergeRegionArea: 20,
-        maxVertsPerPoly: 6,
-        detailSampleDist: 6,
-        detailSampleMaxError: 1,
-        borderSize: 1,
-        tileSize: 64
+        cs: 0.2, ch: 0.2, walkableSlopeAngle: 35,
+        walkableHeight: 1.0, walkableClimb: 0.5,
+        walkableRadius: 0.4, maxEdgeLen: 12,
+        maxSimplificationError: 1.3, minRegionArea: 8,
+        mergeRegionArea: 20, maxVertsPerPoly: 6,
+        detailSampleDist: 6, detailSampleMaxError: 1,
+        borderSize: 1, tileSize: 64
     };
 
-    // On utilise tous les meshes "walkable" (sol + murs intérieurs si besoin)
-    const walkableMeshes = [];
-    scene.meshes.forEach(mesh => {
-        if (mesh.name === "ground" || mesh.name.startsWith("inner")) {
-            walkableMeshes.push(mesh);
-        }
-    });
+    const walkableMeshes = scene.meshes.filter(m => m.name === "ground" || m.name.startsWith("inner"));
 
-    // Création du navmesh
     window.navigationPlugin.createNavMesh(walkableMeshes, navMeshParameters, (navmeshData) => {
-        console.log("NavMesh créé avec succès !");
-        
-        // Debug optionnel : afficher le navmesh en vert semi-transparent
-        navMeshDebug = window.navigationPlugin.createDebugNavMesh(scene);
-        navMeshDebug.material = new BABYLON.StandardMaterial("navDebugMat", scene);
+        const navMeshDebug = window.navigationPlugin.createDebugNavMesh(scene);
+        navMeshDebug.material = new BABYLON.StandardMaterial("navMat", scene);
         navMeshDebug.material.diffuseColor = new BABYLON.Color3(0, 1, 0);
-        navMeshDebug.material.alpha = 0.15;
-        navMeshDebug.position.y += 0.05; // légèrement au-dessus du sol
+        navMeshDebug.material.alpha = 0.1;
+        navMeshDebug.position.y = 0.01;
     });
 
-    // Création du Crowd (gère plusieurs agents en même temps)
-    crowd = window.navigationPlugin.createCrowd(20, 0.4, scene);  // max 20 agents, radius 0.4
-    //mettre le crowd en pause au début, on le lancera seulement quand la simulation commencera
+    crowd = window.navigationPlugin.createCrowd(10, 0.5, scene);
 }
 
 function startPreparation() {
-    isPreparationPhase = true;
+    window.isPreparationPhase = true;
     enablePlayerInteractions();
     console.log("Préparation : Agents stoppés");
 }
 
 function startSimulation() {
-    isPreparationPhase = false;
+    window.isPreparationPhase = false;
     disablePlayerInteractions();
     console.log("Simulation : Agents en route");
 }
@@ -353,6 +305,12 @@ function enablePlayerInteractions() {
     scene.meshes.forEach(mesh => {
         if (mesh.name.startsWith("obstacle")) {
             mesh.isPickable = true;  // Permet de cliquer et drag l'obstacle
+        }
+    });
+    // pour les portes :
+    scene.meshes.forEach(mesh => {
+        if (mesh.name.startsWith("porte")) {
+            mesh.isPickable = true;  // Permet de cliquer sur la porte
         }
     });
 }

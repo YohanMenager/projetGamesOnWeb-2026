@@ -12,27 +12,32 @@ export default class Bot {
         this.target = null;
         this.objective = objective;
 
+        this.hasKey = false;
+
         botMesh.Bot = this;
 
         this.botMesh.scaling = new BABYLON.Vector3(this.scaling, this.scaling, this.scaling);
 
-        // Physique légère (optionnelle avec Recast)
-        /*if (!botMesh.aggregate) {
+        // 1. === PHYSIQUE DU ROBOT ===
+        if (!botMesh.aggregate) {
             botMesh.aggregate = new BABYLON.PhysicsAggregate(
                 botMesh,
                 BABYLON.PhysicsShapeType.BOX,
-                { mass: 1, restitution: 0.0, friction: 0.8 },
+                { mass: 0, restitution: 0.0, friction: 0.8 }, // mass: 0 en fait un objet cinématique
                 scene
             );
-            botMesh.aggregate.body.setLinearDamping(1.8);
-            botMesh.aggregate.body.setAngularDamping(2.0);
-        }*/
+            
+            // CRUCIAL : Indique à Havok que la position du mesh va être modifiée manuellement (par le Crowd) 
+            // et qu'il doit s'en servir pour repousser les objets dynamiques (comme le bloc).
+            botMesh.aggregate.body.disablePreStep = false;
+        }
     }
 
     // Appelée chaque frame dans registerBeforeRender
     update(scene) {
         if (this.agentIndex < 0 || !this.crowd) return;
 
+        
 
         // Récupérer la position via l'index
         const agentPos = this.crowd.getAgentPosition(this.agentIndex);
@@ -54,6 +59,15 @@ export default class Bot {
 
     // Définit une cible (sortie, clé, etc.)
     setTarget(targetPosition) {
+        if (!targetPosition) {
+            console.error(`Bot ${this.id}: targetPosition is undefined.`);
+            return;
+        }
+
+        // Si on a déjà cette cible exacte, on ne recalcule rien (optimisation !)
+        if (this.target && (this.target.x === targetPosition.x) && (this.target.z === targetPosition.z)) {
+            return;
+        }
         this.target = targetPosition;
 
         if (!this.navigationPlugin || !this.crowd) {
@@ -61,17 +75,16 @@ export default class Bot {
             return;
         }
 
-        // Créer l'agent une seule fois
         if (this.agentIndex < 0) {
             this.agentIndex = this.crowd.addAgent(
                 this.botMesh.position,
                 {
                     radius: 0.45,
                     height: 1.2,
-                    maxAcceleration: 10,
+                    maxAcceleration: 40,
                     maxSpeed: this.speed * 15,
                     collisionQueryRange: 3,
-                    pathOptimizationRange: 15,
+                    pathOptimizationRange: 0,
                     separationWeight: 2.5
                 },
                 this.navigationPlugin
@@ -80,7 +93,6 @@ export default class Bot {
             console.log(`Bot ${this.id} → agentIndex = ${this.agentIndex}`);
         }
 
-        // Envoyer vers la cible
         this.crowd.agentGoto(this.agentIndex, targetPosition);
     }
 
