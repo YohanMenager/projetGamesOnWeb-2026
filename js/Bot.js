@@ -8,72 +8,105 @@ export default class Bot {
         this.speed = speed || 0.12;
         this.scaling = scaling || 1.0;
 
-        this.agentIndex = -1;        // ← On stocke l'INDEX (nombre) maintenant
+        this.agentIndex = -1;
         this.target = null;
         this.objective = objective;
-
         this.hasKey = false;
+        this.attachedBloc = null;
+
+        this.state = "MOVING"; // MOVING, SEEKING_BLOCK, PUSHING_BLOCK
+        this.foundBlock = null;
+        this.stuckFrames = 0;
 
         botMesh.Bot = this;
-
         this.botMesh.scaling = new BABYLON.Vector3(this.scaling, this.scaling, this.scaling);
-
-        // 1. === PHYSIQUE DU ROBOT ===
-        if (!botMesh.aggregate) {
-            botMesh.aggregate = new BABYLON.PhysicsAggregate(
-                botMesh,
-                BABYLON.PhysicsShapeType.BOX,
-                { mass: 0, restitution: 0.0, friction: 0.8 }, // mass: 0 en fait un objet cinématique
-                scene
-            );
-            
-            // CRUCIAL : Indique à Havok que la position du mesh va être modifiée manuellement (par le Crowd) 
-            // et qu'il doit s'en servir pour repousser les objets dynamiques (comme le bloc).
-            botMesh.aggregate.body.disablePreStep = false;
-        }
     }
 
-    // Appelée chaque frame dans registerBeforeRender
     update(scene) {
         if (this.agentIndex < 0 || !this.crowd) return;
 
-        
-
-        // Récupérer la position via l'index
+        // Position et rotation depuis Recast
         const agentPos = this.crowd.getAgentPosition(this.agentIndex);
+        if (agentPos) this.botMesh.position.copyFrom(agentPos);
 
-        if (agentPos) {
-            this.botMesh.position.x = agentPos.x;
-            this.botMesh.position.z = agentPos.z;
-            this.botMesh.position.y = 0.8;   // ou appelle followGround() si tu veux
+        const velocity = this.crowd.getAgentVelocity(this.agentIndex);
+        if (velocity && velocity.length() > 0.05) {
+            const dir = velocity.normalize();
+            this.botMesh.rotation.y = Math.atan2(-dir.x, -dir.z);
+            this.stuckFrames = 0;
         }
 
-        // Récupérer la vélocité pour orienter le robot
-        const velocity = this.crowd.getAgentVelocity(this.agentIndex);
-        if (velocity && velocity.length() > 0.1) {
-            const dir = velocity.normalize();
-            const alpha = Math.atan2(-dir.x, -dir.z);
-            this.botMesh.rotation.y = alpha;
+        if (this.state !== "PUSHING_BLOCK") {
+            this.performScan();
+        }
+
+        // Gestion des états
+        if (this.state === "SEEKING_BLOCK") {
+            if (this.attachedBloc) {
+                console.log(`Bot ${this.id} : bloc attaché, poussée en cours.`);
+                this.state = "PUSHING_BLOCK";
+            } else {
+                // Mettre à jour la cible en continu car le bloc peut bouger
+                if (this.foundBlock) {
+                    this.goTo(this.foundBlock.position);
+                }
+
+                this.stuckFrames++;
+                if (this.stuckFrames > 90) {
+                    // Bloc inaccessible ou déjà pris, on abandonne
+                    console.log(`Bot ${this.id} : bloc inaccessible, reprise de l'objectif.`);
+                    this.foundBlock = null;
+                    this.state = "MOVING";
+                    this.stuckFrames = 0;
+                    this.setTarget(this.objective);
+                }
+            }
+
+        } else if (this.state === "PUSHING_BLOCK") {
+            if (!this.attachedBloc) {
+                // Bloc.js a fini (lockInPlace), on reprend
+                console.log(`Bot ${this.id} : bloc posé, reprise de l'objectif.`);
+                this.foundBlock = null;
+                this.state = "MOVING";
+                this.stuckFrames = 0;
+            }
         }
     }
 
-    // Définit une cible (sortie, clé, etc.)
+    performScan() {
+        // Raycast droit devant, chaque frame
+        const rayOrigin = this.botMesh.position.clone();
+        rayOrigin.y += 0.5;
+        const forward = new BABYLON.Vector3(
+            -Math.sin(this.botMesh.rotation.y),
+            0,
+            -Math.cos(this.botMesh.rotation.y)
+        );
+        const ray = new BABYLON.Ray(rayOrigin, forward, 15);
+        const hit = this.scene.pickWithRay(ray, mesh => mesh.isPickable);
+
+        if (!hit.hit || !hit.pickedMesh || this.id !=2 ) return;
+        console.log(`Bot ${this.id} : scan effectué, hit : ${hit.pickedMesh.name}`);
+        if (!hit.pickedMesh.name) return;
+        const name = hit.pickedMesh.name.toLowerCase();
+        if (!name.includes("pushablebloc")) return;
+
+        const blocObj = hit.pickedMesh.parentBloc;
+        if (!blocObj || blocObj.isLocked || blocObj.attachedBot) return;
+
+        
+        console.log(`Bot ${this.id} : bloc repéré à ${hit.distance.toFixed(1)}m !`);
+        this.foundBlock = hit.pickedMesh;
+        this.state = "SEEKING_BLOCK";
+        this.stuckFrames = 0;
+        this.goTo(this.foundBlock.position);
+    }
+
     setTarget(targetPosition) {
-        if (!targetPosition) {
-            console.error(`Bot ${this.id}: targetPosition is undefined.`);
-            return;
-        }
+        if (!targetPosition) return;
 
-        // Si on a déjà cette cible exacte, on ne recalcule rien (optimisation !)
-        if (this.target && (this.target.x === targetPosition.x) && (this.target.z === targetPosition.z)) {
-            return;
-        }
-        this.target = targetPosition;
-
-        if (!this.navigationPlugin || !this.crowd) {
-            console.warn("Recast non initialisé pour ce bot");
-            return;
-        }
+        this.target = targetPosition.clone();
+        if (!this.navigationPlugin || !this.crowd) return;
 
         if (this.agentIndex < 0) {
             this.agentIndex = this.crowd.addAgent(
@@ -85,14 +118,11 @@ export default class Bot {
                     maxSpeed: this.speed * 15,
                     collisionQueryRange: 3,
                     pathOptimizationRange: 0,
-                    separationWeight: 2.5
+                    separationWeight: 1.0
                 },
                 this.navigationPlugin
             );
-
-            console.log(`Bot ${this.id} → agentIndex = ${this.agentIndex}`);
         }
-
         this.crowd.agentGoto(this.agentIndex, targetPosition);
     }
 
@@ -100,11 +130,9 @@ export default class Bot {
         if (this.agentIndex >= 0) {
             this.crowd.removeAgent(this.agentIndex);
             this.agentIndex = -1;
-            console.log(`Bot ${this.id} → agent stoppé`);
-          }  
+        }
     }
 
-    // Pour changer de cible plus tard
     goTo(newPosition) {
         if (this.agentIndex >= 0) {
             this.crowd.agentGoto(this.agentIndex, newPosition);

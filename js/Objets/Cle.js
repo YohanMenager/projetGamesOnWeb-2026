@@ -48,7 +48,7 @@ export default class Cle {
             // Si le bot est assez proche (rayon de ramassage)
             if (distance < 1.5) {
                 this.pickup(bot);
-                break; // On arrête la boucle, la clé est prise !
+                break; // On arrête la boucle, la clé est prise 
             }
         }
     }
@@ -57,15 +57,15 @@ export default class Cle {
         this.isPickedUp = true;
         this.carrierBot = bot;
         
-        // On prévient le bot qu'il a la clé (il faudra ajouter cette variable dans Bot.js)
+        // On prévient le bot qu'il a la clé 
         bot.hasKey = true; 
         console.log(`Le bot ${bot.id} a récupéré la clé !`);
 
         // === L'ASTUCE DU PARENTING ===
-        // On attache la clé au robot. Ses coordonnées deviennent RELATIVES au robot !
+        // On attache la clé au robot. Ses coordonnées deviennent relatives au robot 
         this.mesh.setParent(bot.botMesh);
 
-        // Comme ton bot a un "scaling" de 0.25, la clé va rétrécir automatiquement.
+        // Comme le bot a un "scaling" de 0.25, la clé va rétrécir automatiquement.
         // On la positionne au-dessus de sa tête. 
         // Note : En coordonnées locales, Y=5 signifie "5 fois plus haut que la taille du bot"
         this.mesh.position = new BABYLON.Vector3(0, 5, 0); 

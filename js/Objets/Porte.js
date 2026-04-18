@@ -45,18 +45,10 @@ export default class Porte {
         this.partA.material = this.partB.material = this.material;
 
         // 3. === NAVIGATION & INTERACTIONS ===
-        this.initNavMeshUpdate();
         this.type === "player" ? this.setupPlayerInteraction() : this.setupBotInteraction();
     }
 
-    initNavMeshUpdate() {
-        const check = setInterval(() => {
-            if (window.navigationPlugin) {
-                this.updateNavMesh();
-                clearInterval(check);
-            }
-        }, 500);
-    }
+
 
     setupAppearance() {
         if (this.type === "player") this.material.diffuseColor = new BABYLON.Color3(0.2, 0.5, 1);

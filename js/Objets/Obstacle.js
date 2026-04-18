@@ -15,26 +15,19 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
         this.mesh.material = this.material;
 
         // === PHYSIQUE HAVOK ===
-        this.aggregate = new BABYLON.PhysicsAggregate(this.mesh, BABYLON.PhysicsShapeType.BOX, { mass: this.mass, friction: 0.75 }, scene);
+        this.aggregate = new BABYLON.PhysicsAggregate(this.mesh, BABYLON.PhysicsShapeType.BOX, { mass: this.mass, friction: 0.75, restitution: 0 }, scene);
         this.aggregate.body.setLinearDamping(2.5);
         this.aggregate.body.setAngularDamping(3.0);
+
+        const body = this.aggregate.body;
+
+
 
         this.setupDragBehavior();
         
         // Stockage de l'obstacle Recast pour l'IA
         this.recastObstacle = null;
-        if (window.navigationPlugin) {
-            this.ajouterAuNavMesh();
-        }
-        else{
-            //attendre que le plugin soit prêt pour ajouter l'obstacle au navmesh
-            const checkPluginInterval = setInterval(() => {
-                if (window.navigationPlugin) {
-                    this.ajouterAuNavMesh();
-                    clearInterval(checkPluginInterval);
-                }
-            }, 500);
-        }
+
     }
 
     setupDragBehavior() {
@@ -68,7 +61,7 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
             // On calcule la direction vers laquelle on veut aller
             const direction = targetPosition.subtract(currentPosition);
             
-            // On applique la vitesse. 15 = nervosité du drag (tu peux l'augmenter/baisser)
+            // On applique la vitesse. 15 = nervosité du drag
             this.aggregate.body.setLinearVelocity(direction.scale(15));
             
             // On empêche l'objet de tourner sur lui-même s'il frotte contre un mur
@@ -86,7 +79,7 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
     ajouterAuNavMesh() {
         if (window.navigationPlugin) {
                 // On s'assure que la taille est correcte (demi-extents)
-                // Si ta boîte fait 2.5 de large, l'extent doit être 1.25
+                // Si la boîte fait 2.5 de large, l'extent doit être 1.25
                 let extent = new BABYLON.Vector3(
                     this.size.width / 2, 
                     this.size.height / 2, 
@@ -103,17 +96,6 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
             }
     }
 
-    enableDragging() {
-        this.isDraggable = true;
-        this.dragBehavior.enabled = true;
-        this.material.diffuseColor.scaleInPlace(1.0); // couleur normale
-    }
-
-    disableDragging() {
-        this.isDraggable = false;
-        this.dragBehavior.enabled = false;
-        this.material.diffuseColor = new BABYLON.Color3(0.45, 0.3, 0.15); // plus sombre
-    }
 
     setMass(newMass) {
         this.mass = newMass;
@@ -128,3 +110,5 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
         if (this.mesh) this.mesh.dispose();
     }
 }
+
+
