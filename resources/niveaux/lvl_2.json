@@ -1,0 +1,33 @@
+{
+    "size": 40,
+    "exit": { "x": 16, "z": 0, "width": 4, "depth": 4 },
+    "walls": [
+        { "name": "inner3", "x": -1, "z": -1, "width": 1, "depth": 7 },
+        { "name": "inner4", "x": 1, "z": -1, "width": 1, "depth": 7 },
+        { "name": "inner5", "x": -1, "z": 12.5, "width": 1, "depth": 15 },
+        { "name": "inner6", "x": 1, "z": 12.5, "width": 1, "depth": 15 },
+        { "name": "inner7", "x": -10, "z": -12, "width": 19, "depth": 1 }
+    ],
+    "interactables": [
+        { "type": "obstacle", "x": 0, "z": -12, "width": 1, "depth": 8 }
+    ],
+    "bots": [
+        { "id": 0, "startX": -18, "startZ": 10, "targetX": 16, "targetZ": 0 },
+        { "id": 1, "startX": -18, "startY": 2.8, "startZ": -7.5, "targetX": 16, "targetZ": 0 }
+    ],
+    "enemies": [
+        { "id": 0, "startX": -5, "startY": 2.8, "startZ": -15}
+    ],
+    "platforms": [
+        { "x": 2.5, "y": 2, "z": -12,  "width": 4, "depth": 15},
+        { "x": -10, "y": 2, "z": -12,  "width": 19, "depth": 15}
+    ],
+    "ramps": [
+        { 
+            "name": "rampe1", 
+            "x": 6.6, "y": 0, "z": -12, 
+            "width": 4, "height": 2, "depth": 5, 
+            "rotationY": 1.5708 
+        }
+    ]
+}

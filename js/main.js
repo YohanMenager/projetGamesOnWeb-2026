@@ -77,7 +77,7 @@ async function initGame(scene) {
     createLights(scene);
 
     // Charger le premier niveau par défaut 
-    await chargerNiveau(1, scene);
+    await chargerNiveau(2, scene);
 
     // Mise à jour (déléguée à la classe Niveau)
     scene.registerBeforeRender(() => {

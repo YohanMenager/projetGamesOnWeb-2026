@@ -3,7 +3,7 @@ import Bot from "./Bot.js";
 import Obstacle from "./Objets/Obstacle.js";
 import Bloc from "./Objets/Bloc.js";
 import Porte from "./Objets/Porte.js";
-
+import Ennemi from "./Objets/Ennemi.js";
 export default class Niveau {
     constructor(scene, levelData) {
         this.scene = scene;
@@ -12,7 +12,8 @@ export default class Niveau {
         this.staticMeshes = []; 
         this.interactables = [];
         this.scene.bots = []; // Rattaché à la scene car Bloc.js l'utilise
-        
+        this.scene.ennemis = [];
+
         // Navigation
         this.navigationPlugin = null;
         this.crowd = null;
@@ -32,7 +33,8 @@ export default class Niveau {
         await this.initNavMesh(); // Doit être fait après l'environnement statique
         
         this.spawnBots();
-        
+        this.spawnEnnemis();
+
         this.isPreparationPhase = true;
     }
 
@@ -82,6 +84,8 @@ export default class Niveau {
         if (this.levelData.platforms) {
             this.levelData.platforms.forEach(p => {
                 const plat = BABYLON.MeshBuilder.CreateBox(p.name, { width: p.width, height: p.y, depth: p.depth }, this.scene);
+                plat.material = rampeMat;
+                plat.material.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
                 plat.position.set(p.x, p.y / 2, p.z); // Centré sur Y
                 new BABYLON.PhysicsAggregate(plat, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
                 plat.isPickable = true; 
@@ -95,7 +99,8 @@ export default class Niveau {
                 // Créer un pavé incliné avec CreateBox
                 // On allonge artificiellement la profondeur de 10% (* 1.1) pour mordre dans la plateforme
                 const ramp = BABYLON.MeshBuilder.CreateBox(r.name, { width: r.width, height: r.height, depth: r.depth * 1.1 }, this.scene);
-                ramp.material = rampeMat;
+                // ramp.material = rampeMat;
+                // ramp.material.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1); 
                 ramp.isPickable = true;
                 ramp.position.set(r.x, r.y || 0, r.z); 
 
@@ -127,6 +132,8 @@ export default class Niveau {
 
     createWall(name, w, d, x, z) {
         const wall = BABYLON.MeshBuilder.CreateBox(name, { width: w, height: 3, depth: d }, this.scene);
+        // wall.material = new BABYLON.StandardMaterial(name + "Mat", this.scene);
+        // wall.material.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.6);
         wall.position.set(x, 1.5, z);
         wall.isPickable = false;  
         new BABYLON.PhysicsAggregate(wall, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
@@ -205,14 +212,42 @@ export default class Niveau {
 
         this.levelData.bots.forEach(bData => {
             const mesh = BABYLON.MeshBuilder.CreateBox("botMesh_" + bData.id, { size: 1 }, this.scene);
-            mesh.position = new BABYLON.Vector3(bData.startX, 0.8, bData.startZ);
+            mesh.position = new BABYLON.Vector3(bData.startX, bData.startY || 0.8, bData.startZ);// Y par défaut à 0.8 pour être au-dessus du sol
             
             const bot = new Bot(
                 mesh, bData.id, 0.15, 1, this.scene, 
                 this.navigationPlugin, this.crowd, 
-                new BABYLON.Vector3(bData.targetX, 0.8, bData.targetZ)
+                new BABYLON.Vector3(bData.targetX, bData.targetY || 0.8, bData.targetZ)
             );
             this.scene.bots.push(bot);
+        });
+    }
+
+    spawnEnnemis() {
+        if (!this.levelData.enemies) return;
+
+        // Création du matériau rouge (une seule fois pour tous les ennemis)
+        const ennemiMat = new BABYLON.StandardMaterial("ennemiMat", this.scene);
+        ennemiMat.diffuseColor = new BABYLON.Color3(1, 0, 0); // Rouge
+        ennemiMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+
+        this.levelData.enemies.forEach(eData => {
+            const mesh = BABYLON.MeshBuilder.CreateBox("ennemiMesh_" + eData.id, { size: 1 }, this.scene);
+            mesh.position = new BABYLON.Vector3(eData.startX, eData.startY || 0.8, eData.startZ);
+            mesh.material = ennemiMat;
+            
+            // Formatage des points de ronde si le JSON en contient
+            let patrolPoints = [];
+            if (eData.patrolPoints) {
+                patrolPoints = eData.patrolPoints.map(p => new BABYLON.Vector3(p.x, 0.8, p.z));
+            }
+
+            const ennemi = new Ennemi(
+                mesh, eData.id, eData.speed || 0.12, 1, this.scene, 
+                this.navigationPlugin, this.crowd, patrolPoints
+            );
+            
+            this.scene.ennemis.push(ennemi);
         });
     }
 
@@ -261,6 +296,10 @@ export default class Niveau {
         this.scene.bots.forEach(bot => {
             if (bot.update) bot.update(this.scene);
         });
+
+        this.scene.ennemis.forEach(ennemi => {
+            if (ennemi.update) ennemi.update();
+        });
     }
 
     /**
@@ -287,6 +326,12 @@ export default class Niveau {
         });
         this.scene.bots = [];
         console.log("Bots détruits");
+
+        this.scene.ennemis.forEach(ennemi => {
+            if (ennemi.mesh) ennemi.mesh.dispose();
+        });
+        this.scene.ennemis = [];
+        console.log("Ennemis détruits");
 
         // 2. Détruire les interactables (blocs, portes...)
         this.interactables.forEach(item => {
@@ -353,6 +398,12 @@ async rebakeNavMesh() {
         target: bot.target ? bot.target.clone() : bot.objective.clone()
     }));
 
+
+    const ennemiTargets = this.scene.ennemis.map(ennemi => ({
+            ennemi,
+            target: ennemi.target ? ennemi.target.clone() : ennemi.mesh.position.clone()
+        }));
+
     // 2. Supprimer tous les agents
     this.scene.bots.forEach(bot => {
         if (bot.agentIndex >= 0) {
@@ -362,6 +413,15 @@ async rebakeNavMesh() {
         // Reset de this.target pour forcer setTarget à recréer l'agent
         bot.target = null;
     });
+
+    this.scene.ennemis.forEach(ennemi => {
+            if (ennemi.agentIndex >= 0) {
+                this.crowd.removeAgent(ennemi.agentIndex);
+                ennemi.agentIndex = -1;
+            }
+            ennemi.target = null;
+        });
+
 
     // 3. Rebake
     this.navigationPlugin.createNavMesh(this.staticMeshes, navMeshParameters);
@@ -387,14 +447,22 @@ async rebakeNavMesh() {
         bot.setTarget(target);
     });
 
+    ennemiTargets.forEach(({ ennemi, target }) => {
+            ennemi.crowd = this.crowd;
+            ennemi.setTarget(target);
+        });
+
     // 7. Debug mesh
-    if (this.navMeshDebug) this.navMeshDebug.dispose();
-    this.navMeshDebug = this.navigationPlugin.createDebugNavMesh(this.scene);
-    const navMat = new BABYLON.StandardMaterial("navMat", this.scene);
-    navMat.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.8);
-    navMat.alpha = 0.6;
-    this.navMeshDebug.material = navMat;
-    this.navMeshDebug.position.y = 0.05;
+    if (this.navMeshDebug)
+    {
+        this.navMeshDebug.dispose();
+        this.navMeshDebug = this.navigationPlugin.createDebugNavMesh(this.scene);
+        const navMat = new BABYLON.StandardMaterial("navMat", this.scene);
+        navMat.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.8);
+        navMat.alpha = 0.6;
+        this.navMeshDebug.material = navMat;
+        this.navMeshDebug.position.y = 0.05;
+    } 
 
     console.log("Rebake terminé !");
 }

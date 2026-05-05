@@ -110,5 +110,3 @@ constructor(scene, position, size = { width: 2, height: 1.5, depth: 2 }, mass = 
         if (this.mesh) this.mesh.dispose();
     }
 }
-
-
