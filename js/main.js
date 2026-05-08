@@ -8,7 +8,10 @@ var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
 // Détecte automatiquement le chemin racine
-const cheminNiveau = window.basePath + "resources/niveaux/";
+const isGitHubPages = window.location.hostname === 'yohanmenager.github.io';
+const cheminNiveau = isGitHubPages 
+    ? window.location.origin + '/projetGamesOnWeb-2026/resources/niveaux/'
+    : './resources/niveaux/';
 
 // ====================== HUD ======================
 const hud = new Hud();
