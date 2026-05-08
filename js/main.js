@@ -8,8 +8,22 @@ var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
 
-// L'URL magique qui s'adapte partout (Localhost ET GitHub Pages)
-const cheminNiveau = new URL("../resources/niveaux/", import.meta.url).href;
+// Calcule le dossier actuel où se trouve l'index.html
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+
+// On récupère le chemin du dossier de l'URL actuelle
+const pathArray = window.location.pathname.split('/');
+pathArray.pop(); // Enlève "index.html" ou le nom du fichier actuel
+const baseDir = pathArray.join('/');
+
+// On s'assure d'avoir un chemin propre
+const BASE_PATH = baseDir.endsWith('/') ? baseDir : baseDir + '/';
+
+const cheminNiveau = isLocal 
+    ? "./resources/niveaux/" 
+    : `${window.location.origin}${BASE_PATH}resources/niveaux/`;
+
+console.log("Chemin configuré :", cheminNiveau);
 // ====================== HUD ======================
 const hud = new Hud();
 
