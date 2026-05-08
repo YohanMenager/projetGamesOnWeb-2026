@@ -7,12 +7,7 @@ var engine = new BABYLON.Engine(canvas, true, { stencil: false }, true);
 var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
-// Détecte automatiquement le chemin racine
-const isGitHubPages = window.location.hostname === 'yohanmenager.github.io';
-const cheminNiveau = isGitHubPages 
-    ? window.location.origin + '/projetGamesOnWeb-2026/resources/niveaux/'
-    : './resources/niveaux/';
-
+const cheminNiveau = "./resources/niveaux/";
 // ====================== HUD ======================
 const hud = new Hud();
 

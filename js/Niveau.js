@@ -517,7 +517,7 @@ async build() {
         const robotResult =
             await BABYLON.SceneLoader.ImportMeshAsync(
                 "",
-                "/resources/models/",
+                "./resources/models/",
                 "robot.glb",
                 this.scene
             );
@@ -525,7 +525,7 @@ async build() {
         const ennemiResult =
             await BABYLON.SceneLoader.ImportMeshAsync(
                 "",
-                "/resources/models/",
+                "./resources/models/",
                 "ennemi.glb",
                 this.scene
             );
