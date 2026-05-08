@@ -8,15 +8,8 @@ var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
 
-// Détection du mode (Local vs GitHub)
-const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
-// Construction du chemin absolu
-const BASE_URL = isLocal 
-    ? window.location.origin + "/" 
-    : "https://yohanmenager.github.io/projetGamesOnWeb-2026/";
-
-const cheminNiveau = BASE_URL + "resources/niveaux/";
+const cheminNiveau = BASE_URL + "./resources/niveaux/";
 
 // LIGNE DE DEBUG : Très important pour vérifier dans la console du navigateur
 console.log("Le chemin configuré pour les niveaux est :", cheminNiveau);
