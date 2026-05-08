@@ -1,6 +1,11 @@
 # S Bots
 projet réalisé pour le concours GamesOnWeb 2026
 
+## lien
+le jeu est disponible à [l'adresse suivante](https://projet-games-on-web-2026.vercel.app/)
+
+
+
 ## équipe
 Yohan Ménager
 Xiaotong Liu
