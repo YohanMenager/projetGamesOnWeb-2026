@@ -8,22 +8,18 @@ var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
 
-// Calcule le dossier actuel où se trouve l'index.html
+// Détection du mode (Local vs GitHub)
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
-// On récupère le chemin du dossier de l'URL actuelle
-const pathArray = window.location.pathname.split('/');
-pathArray.pop(); // Enlève "index.html" ou le nom du fichier actuel
-const baseDir = pathArray.join('/');
+// Construction du chemin absolu
+const BASE_URL = isLocal 
+    ? window.location.origin + "/" 
+    : "https://yohanmenager.github.io/projetGamesOnWeb-2026/";
 
-// On s'assure d'avoir un chemin propre
-const BASE_PATH = baseDir.endsWith('/') ? baseDir : baseDir + '/';
+const cheminNiveau = BASE_URL + "resources/niveaux/";
 
-const cheminNiveau = isLocal 
-    ? "./resources/niveaux/" 
-    : `${window.location.origin}${BASE_PATH}resources/niveaux/`;
-
-console.log("Chemin configuré :", cheminNiveau);
+// LIGNE DE DEBUG : Très important pour vérifier dans la console du navigateur
+console.log("Le chemin configuré pour les niveaux est :", cheminNiveau);
 // ====================== HUD ======================
 const hud = new Hud();
 
