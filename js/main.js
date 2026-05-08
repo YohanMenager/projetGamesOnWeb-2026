@@ -7,10 +7,7 @@ var engine = new BABYLON.Engine(canvas, true, { stencil: false }, true);
 var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
-const BASE_PATH = window.location.hostname === "localhost"
-    ? "./"
-    : "/projetGamesOnWeb-2026/";
-const cheminNiveau = BASE_PATH + "resources/niveaux/";
+const cheminNiveau = "resources/niveaux/";
 // ====================== HUD ======================
 const hud = new Hud();
 
