@@ -217,7 +217,7 @@ html, body {
     position: absolute;
     z-index: 199;
     left: 50%;
-    top: 15px;
+    bottom: 5vh;
     transform: translateX(-50%);
     display: inline-block;
     font-size: x-small;

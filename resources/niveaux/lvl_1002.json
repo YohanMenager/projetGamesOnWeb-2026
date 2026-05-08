@@ -1,0 +1,33 @@
+{
+    "size": 40,
+    "exit": { "x": 16, "z": 0, "width": 4, "depth": 4 },
+    "walls": [
+        { "name": "mur_central", "x": 0, "z": 0, "width": 40, "depth": 1 },
+        { "name": "mur_couloir_N", "x": 8, "z": -8, "width": 1, "depth": 15 },
+        { "name": "mur_couloir_S", "x": -8, "z": 8, "width": 1, "depth": 15 }
+    ],
+    "interactables": [
+        {
+            "type": "cle",
+            "x": -12, "z": -8
+        },
+        {
+            "type": "porte",
+            "x": 0, "z": 0,
+            "width": 4, "depth": 1,
+            "owner": "bot",
+            "requiresKey": true
+        },
+        {
+            "type": "porte",
+            "x": 8, "z": -15,
+            "width": 1, "depth": 4,
+            "owner": "bot",
+            "requiresKey": false
+        }
+    ],
+    "bots": [
+        { "id": 0, "startX": -15, "startZ": -8, "targetX": 16, "targetZ": 0 },
+        { "id": 1, "startX": -15, "startZ": 5,  "targetX": 16, "targetZ": 0 }
+    ]
+}

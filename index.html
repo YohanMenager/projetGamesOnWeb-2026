@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,41 +6,25 @@
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="apple-mobile-web-app-capable" content="yes"/>
-    <title>HAVOK Demo</title>
-    <!-- Main StyleSheet -->
-    <link rel="stylesheet" href="./css/main.css?id=54">
-    <!-- Bootstrap 5.0.2 -->
- head>
+    <title>S Bots</title>
+    <link rel="stylesheet" href="./css/main.css?id=55">
+    <link rel="stylesheet" href="./css/hud.css">
+</head>
 
 <body>
-    <!-- Loading DIV -->
     <div id="loadingDiv">
-        <p id="loadingText" class="font-weight-light">L O A D I N G  -   H A V O K</p>
+        <p id="loadingText" class="font-weight-light">L O A D I N G</p>
         <span class="loader"></span>
     </div>
 
-    <!-- BabylonJS Render Canvas -->
     <canvas id="renderCanvas"></canvas>
-    
-    <!-- JS Libraries -->
-    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-    <script src="./libs/babylonjs/babylon.js"></script> 
-    <script src="./libs/babylonjs-loaders/babylonjs.loaders.min.js"></script> 
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.babylonjs.com/recast.js"></script>
-    <!-- <script src="./libs/pepjs/dist/pep.js"></script> -->
-   
-    <!-- JS Main App -->
-    <script type="module" src="./js/main.js?id=132"></script>
 
-    
-    <!-- bouton pour alterner entre les phases -->
-    <button id="phaseButton" class="btn btn-outline-info">Passer en simulation</button>
+    <script type="module" src="./js/main.js?id=133"></script>
 
-    <!-- Test Buttons 
-    <div class="buttons">
-        <button id="customBT" type="button" class="btn btn-outline-info" onclick="dropSpheres()">DROP OBJECTS</button>
-        <button id="customBT" type="button" class="btn btn-outline-info" onclick="clearScene()">CLEAR</button>
-    </div>-->
-
+    <button id="phaseButton" class="btn btn-outline-info">Démarrer</button>
 </body>
 </html>

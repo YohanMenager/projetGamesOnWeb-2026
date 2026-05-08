@@ -1,0 +1,27 @@
+{
+    "size": 40,
+    "exit": { "x": 16, "z": -16, "width": 4, "depth": 4 },
+    "walls": [
+        { "name": "inner1", "x": 7, "z": -11, "width": 9, "depth": 7 },
+        { "name": "inner2", "x": -14, "z": -11, "width": 12, "depth": 18 },
+        { "name": "inner3", "x": 7, "z": 12, "width": 12, "depth": 2.2 },
+        { "name": "inner4", "x": -14, "z": 8, "width": 12, "depth": 12.5 },
+        { "name": "inner5", "x": 9.5, "z": 2, "width": 20, "depth": 10 },
+        { "name": "inner6", "x": 0, "z": -9, "width": 1, "depth": 13 }
+    ],
+    "interactables": [
+        { "type": "obstacle", "x": 0, "z": 14, "width": 10, "depth": 1.5 },
+        { "type": "obstacle", "x": 12.5, "z": -5.5, "width": 0.5, "depth": 5 },
+        { "type": "porte", "x": -8.6, "z": 0, "width": 1, "depth": 4.9, "owner": "bot", "requiresKey": true },
+        { "type": "porte", "x": 4, "z": -17, "width": 1, "depth": 4.9, "owner": "bot", "requiresKey": false },
+        { "type": "cle", "x": 15, "z": 15 }
+    ],
+    "bots": [
+        { "id": 0, "startX": -15, "startZ": 17, "targetX": 16, "targetZ": 0 },
+        { "id": 1, "startX": -15, "startZ": 0, "targetX": 16, "targetZ": 0 }
+    ],
+    "enemies": [
+        { "id": 0, "startX": 8,  "startZ": -18, "patrolPoints": [ { "x": 8, "z": -18 }, { "x": 10, "z": -18 } ] }
+    ]
+
+}

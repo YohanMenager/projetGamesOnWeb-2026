@@ -9,12 +9,12 @@
         { "name": "inner4", "x": -17, "z": -3, "width": 7, "depth": 1 }
     ],
     "interactables": [
-        { "type": "obstacle", "x": 0, "z": -3, "width": 9, "depth": 1 },
-        { "type": "porte", "x": 10, "z": 0, "width": 1, "depth": 4.9, "owner": "bot", "requiresKey": true },
-        { "type": "cle", "x": 0, "z": -5 }
+        { "type": "obstacle", "x": -9, "z": -3, "width": 9, "depth": 1 }
     ],
     "bots": [
         { "id": 0, "startX": -15, "startZ": 0, "targetX": 16, "targetZ": 0 }
+    ],
+    "enemies": [
+        { "id": 0, "startX": 0,  "startZ": -5, "patrolPoints": [ { "x": 0, "z": -5 }, { "x": 0, "z": 2 } ] }
     ]
-
 }

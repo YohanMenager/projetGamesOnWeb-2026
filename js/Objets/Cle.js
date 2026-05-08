@@ -6,21 +6,37 @@ export default class Cle {
 
         // 1. === LE VISUEL DE LA CLÉ ===
         // On fait une forme simple (un petit losange/cristal)
-        this.mesh = BABYLON.MeshBuilder.CreateCylinder("cle", { 
+        this.mesh = BABYLON.MeshBuilder.CreateBox("cle", { 
+            width: 0.8, height: 1.5, depth: 0.8
+        }, scene);
+        this.mesh.isPickable = true;
+        this.mesh.isVisible = false; // Le hitbox est invisible
+
+        // Visuel séparé, enfant du hitbox
+        this.visual = BABYLON.MeshBuilder.CreateCylinder("cle_visual", { 
             diameterTop: 0, 
-            diameterBottom: 0.4, 
-            height: 0.8, 
+            diameterBottom: 1, 
+            height: 2, 
             tessellation: 4 
         }, scene);
-        
+        this.visual.setParent(this.mesh);
+        this.visual.position = BABYLON.Vector3.Zero();
+        this.visual.material = this.material;
+        this.visual.Cle = this; // Référence pour interactions
+
         this.mesh.position = position.clone();
-        this.mesh.position.y = 1.0; // Flotte un peu au-dessus du sol
+        this.mesh.position.y = 0.5; // Flotte un peu au-dessus du sol
+        // Dans le constructeur, après la création du mesh
+        this.mesh.alwaysSelectAsActiveMesh = true; 
+        this.mesh.isPickable = true;
 
         // Matériau brillant/doré
         this.material = new BABYLON.StandardMaterial("cleMat", scene);
         this.material.diffuseColor = color;
         this.material.emissiveColor = color.scale(0.4); // Brille légèrement dans le noir
-        this.mesh.material = this.material;
+        this.visual.material = this.material;
+
+        this.mesh.Cle = this;
 
         // 2. === COMPORTEMENT (Rotation et Ramassage) ===
         this.observer = scene.onBeforeRenderObservable.add(() => {
@@ -28,8 +44,7 @@ export default class Cle {
                 // Animation : tourne sur elle-même et flotte de haut en bas
                 this.mesh.rotation.y += 0.03;
                 this.mesh.position.y = 1.0 + Math.sin(performance.now() / 300) * 0.1;
-
-                // Vérification de la distance avec les bots
+                this.mesh.refreshBoundingInfo(); // Resynchronise le bounding box après l'animation
                 this.checkPickup();
             }
         });
@@ -40,10 +55,10 @@ export default class Cle {
 
         for (let bot of this.scene.bots) {
             // Si le bot n'a pas de mesh ou possède DÉJÀ une clé, on l'ignore
-            if (!bot.botMesh || bot.hasKey) continue;
+            if (!bot.hitbox || bot.hasKey) continue;
 
             // Calcul de la distance entre la clé et le bot
-            const distance = BABYLON.Vector3.Distance(this.mesh.position, bot.botMesh.position);
+            const distance = BABYLON.Vector3.Distance(this.mesh.position, bot.hitbox.position);
 
             // Si le bot est assez proche (rayon de ramassage)
             if (distance < 1.5) {
@@ -56,24 +71,15 @@ export default class Cle {
     pickup(bot) {
         this.isPickedUp = true;
         this.carrierBot = bot;
-        
-        // On prévient le bot qu'il a la clé 
-        bot.hasKey = true; 
-        console.log(`Le bot ${bot.id} a récupéré la clé !`);
+        bot.hasKey = true;
 
-        // === L'ASTUCE DU PARENTING ===
-        // On attache la clé au robot. Ses coordonnées deviennent relatives au robot 
-        this.mesh.setParent(bot.botMesh);
-
-        // Comme le bot a un "scaling" de 0.25, la clé va rétrécir automatiquement.
-        // On la positionne au-dessus de sa tête. 
-        // Note : En coordonnées locales, Y=5 signifie "5 fois plus haut que la taille du bot"
-        this.mesh.position = new BABYLON.Vector3(0, 5, 0); 
-        this.mesh.rotation.x = 0;
-        this.mesh.rotation.z = 0;
+        // On attache le hitbox (et donc le visuel) au bot
+        this.mesh.setParent(bot.hitbox);
+        this.mesh.position = new BABYLON.Vector3(0, 5, 0);
+        this.mesh.rotation = BABYLON.Vector3.Zero();
+        this.mesh.isPickable = false;
         
-        // Optionnel : on peut la faire tourner plus vite au-dessus de sa tête
-        this.scene.onBeforeRenderObservable.remove(this.observer); // On supprime l'ancienne animation
+        this.scene.onBeforeRenderObservable.remove(this.observer);
         this.scene.onBeforeRenderObservable.add(() => {
             this.mesh.rotation.y += 0.08;
         });

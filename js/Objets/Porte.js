@@ -1,5 +1,5 @@
 export default class Porte {
-    constructor(scene, position, type = "bot", requiresKey = false, size = { width: 3, height: 4, depth: 0.5 }) {
+    constructor(scene, position, type = "bot", requiresKey = false, size = { width: 3, height: 3, depth: 0.5 }) {
         this.scene = scene;
         this.type = type;
         this.requiresKey = requiresKey;
@@ -27,10 +27,15 @@ export default class Porte {
 
         this.partA = BABYLON.MeshBuilder.CreateBox("porte_A_" + type, halfSize, scene);
         this.partB = BABYLON.MeshBuilder.CreateBox("porte_B_" + type, halfSize, scene);
+        this.partA.parentPorte = this;
+        this.partB.parentPorte = this;
+        this.partA.isPickable = true;
+        this.partB.isPickable = true;
 
         // Positionnement initial : on les colle au centre
         this.partA.position = this.basePosition.clone();
         this.partB.position = this.basePosition.clone();
+        
 
         const offset = this.isWideX ? (this.size.width / 4) : (this.size.depth / 4);
         this.partA.position[this.mainAxis] -= offset;
@@ -68,7 +73,11 @@ export default class Porte {
         this.observer = this.scene.onBeforeRenderObservable.add(() => {
             if (this.isOpen || !this.scene.bots) return;
             for (let bot of this.scene.bots) {
-                if (BABYLON.Vector3.Distance(this.basePosition, bot.botMesh.position) < 3.0) {
+                // distance XZ seulement, ignore la différence de hauteur
+                const dx = this.basePosition.x - bot.hitbox.position.x;
+                const dz = this.basePosition.z - bot.hitbox.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < 3.0) {
                     if (!this.requiresKey) this.open();
                     else if (bot.hasKey) { this.consumeKey(bot); this.open(); }
                 }
@@ -78,7 +87,7 @@ export default class Porte {
 
     consumeKey(bot) {
         bot.hasKey = false;
-        bot.botMesh.getChildMeshes().forEach(m => { if (m.name === "cle") m.dispose(); });
+        bot.hitbox.getChildMeshes().forEach(m => { if (m.name === "cle") m.dispose(); });
     }
 
     toggle() {
@@ -124,6 +133,7 @@ export default class Porte {
     }
 
     updateNavMesh() {
+        console.log("Mise à jour du NavMesh pour la porte " + (this.isOpen ? "ouverte" : "fermée"));
         if (!window.navigationPlugin) return;
 
         if (this.recastObstacle !== null) {
@@ -131,7 +141,7 @@ export default class Porte {
             this.recastObstacle = null;
         }
 
-        if (!this.isOpen) {
+        if (!this.isOpen && (this.requiresKey || this.type !== "bot")) {
             const extent = new BABYLON.Vector3(this.size.width / 2, this.size.height / 2, this.size.depth / 2);
             this.recastObstacle = window.navigationPlugin.addBoxObstacle(this.basePosition, extent, 0);
             console.log("NavMesh : Porte bloquée");

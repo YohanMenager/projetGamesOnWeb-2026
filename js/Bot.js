@@ -1,129 +1,209 @@
 export default class Bot {
-    constructor(botMesh, id, speed, scaling, scene, navigationPlugin, crowd, objective) {
-        this.botMesh = botMesh;
+
+    constructor(visualMesh, hitbox, animations, id, speed, scaling, scene, navigationPlugin, crowd, objective) {
+        this.visualMesh = visualMesh;
+        this.hitbox = hitbox;
+        this.animations = animations;
         this.id = id;
         this.scene = scene;
         this.navigationPlugin = navigationPlugin;
         this.crowd = crowd;
         this.speed = speed || 0.12;
         this.scaling = scaling || 1.0;
-
         this.agentIndex = -1;
         this.target = null;
         this.objective = objective;
         this.hasKey = false;
         this.attachedBloc = null;
-
-        this.state = "MOVING"; // MOVING, SEEKING_BLOCK, PUSHING_BLOCK
+        this.state = "MOVING";
+        this.targetDoor = null;
+        this.targetKey = null;
         this.foundBlock = null;
         this.stuckFrames = 0;
-
-        botMesh.Bot = this;
-        this.botMesh.scaling = new BABYLON.Vector3(this.scaling, this.scaling, this.scaling);
+        this.currentAnimation = null;
+        this.hitbox.Bot = this;
+        this.playAnimation("CombatIdle", true);
     }
 
-    update(scene) {
+    update() {
         if (this.agentIndex < 0 || !this.crowd) return;
 
-        // Position et rotation depuis Recast
         const agentPos = this.crowd.getAgentPosition(this.agentIndex);
-        if (agentPos) this.botMesh.position.copyFrom(agentPos);
+        if (agentPos) {
+            this.hitbox.position.copyFrom(agentPos);
+            this.visualMesh.position.copyFrom(agentPos);
+            this.visualMesh.computeWorldMatrix(true);
+        }
 
         const velocity = this.crowd.getAgentVelocity(this.agentIndex);
-        if (velocity && velocity.length() > 0.05) {
+        if (velocity && velocity.length() > 0) {
             const dir = velocity.normalize();
-            this.botMesh.rotation.y = Math.atan2(-dir.x, -dir.z);
+            const rot = Math.atan2(-dir.x, -dir.z);
+            this.hitbox.rotation.y = rot;
+            this.visualMesh.rotation.y = rot;
+            this.playAnimation("Run", true);
             this.stuckFrames = 0;
+        } else {
+            this.playAnimation("CombatIdle", true);
         }
 
-        if (this.state !== "PUSHING_BLOCK") {
-            this.performScan();
-        }
-
-        // Gestion des états
         if (this.state === "SEEKING_BLOCK") {
             if (this.attachedBloc) {
-                console.log(`Bot ${this.id} : bloc attaché, poussée en cours.`);
                 this.state = "PUSHING_BLOCK";
             } else {
-                // Mettre à jour la cible en continu car le bloc peut bouger
-                if (this.foundBlock) {
-                    this.goTo(this.foundBlock.position);
-                }
-
+                if (this.foundBlock) this.goTo(this.foundBlock.position);
                 this.stuckFrames++;
                 if (this.stuckFrames > 90) {
-                    // Bloc inaccessible ou déjà pris, on abandonne
-                    console.log(`Bot ${this.id} : bloc inaccessible, reprise de l'objectif.`);
                     this.foundBlock = null;
                     this.state = "MOVING";
                     this.stuckFrames = 0;
                     this.setTarget(this.objective);
                 }
             }
-
         } else if (this.state === "PUSHING_BLOCK") {
             if (!this.attachedBloc) {
-                // Bloc.js a fini (lockInPlace), on reprend
-                console.log(`Bot ${this.id} : bloc posé, reprise de l'objectif.`);
                 this.foundBlock = null;
                 this.state = "MOVING";
                 this.stuckFrames = 0;
             }
+        } else if (this.state === "SEEKING_KEY") {
+            if (this.hasKey) {
+                this.state = "MOVING";
+                this.targetKey = null;
+                this.setTarget(this.objective);
+                return;
+            }
+            if (this.targetKey) this.goTo(this.targetKey.mesh.getAbsolutePosition());
+        } else if (this.state === "SEEKING_DOOR") {
+            if (!this.targetDoor || this.targetDoor.isOpen) {
+                this.targetDoor = null;
+                this.state = "MOVING";
+                this.setTarget(this.objective);
+            }
+            if (this.targetDoor) {
+                const dest = this.targetDoor.basePosition.clone();
+                dest.y = 0;
+                this.goTo(dest);
+            }
+        }
+        if (this.state === "MOVING") {
+            if (this.objective) this.goTo(this.objective);
+        }
+        if (this.state !== "PUSHING_BLOCK" && this.state !== "SEEKING_KEY" && this.state !== "SEEKING_DOOR") {
+            this.performScan();
         }
     }
 
     performScan() {
-        // Raycast droit devant, chaque frame
-        const rayOrigin = this.botMesh.position.clone();
+        const rayOrigin = this.hitbox.position.clone();
         rayOrigin.y += 0.5;
-        const forward = new BABYLON.Vector3(
-            -Math.sin(this.botMesh.rotation.y),
-            0,
-            -Math.cos(this.botMesh.rotation.y)
-        );
-        const ray = new BABYLON.Ray(rayOrigin, forward, 15);
-        const hit = this.scene.pickWithRay(ray, mesh => mesh.isPickable);
+        const visionAngle = Math.PI / 3;
+        const rayCount = 10;
+        const maxDistance = 20;
 
-        if (!hit.hit || !hit.pickedMesh || this.id !=2 ) return;
-        console.log(`Bot ${this.id} : scan effectué, hit : ${hit.pickedMesh.name}`);
-        if (!hit.pickedMesh.name) return;
-        const name = hit.pickedMesh.name.toLowerCase();
-        if (!name.includes("pushablebloc")) return;
+        for (let i = 0; i < rayCount; i++) {
+            const angleOffset = (i / (rayCount - 1) - 0.5) * visionAngle;
+            const direction = new BABYLON.Vector3(
+                -Math.sin(this.hitbox.rotation.y + angleOffset),
+                0,
+                -Math.cos(this.hitbox.rotation.y + angleOffset)
+            );
+            const ray = new BABYLON.Ray(rayOrigin, direction, maxDistance);
+            const hit = this.scene.pickWithRay(ray, mesh =>
+                mesh.isPickable && mesh !== this.hitbox
+            );
+            //affichage rayon pour debug
+            // const rayHelper = new BABYLON.RayHelper(ray);
+            // rayHelper.show(this.scene, new BABYLON.Color3(1, 0, 0));
 
-        const blocObj = hit.pickedMesh.parentBloc;
-        if (!blocObj || blocObj.isLocked || blocObj.attachedBot) return;
+            if (!hit.hit || !hit.pickedMesh) continue;
 
-        
-        console.log(`Bot ${this.id} : bloc repéré à ${hit.distance.toFixed(1)}m !`);
-        this.foundBlock = hit.pickedMesh;
-        this.state = "SEEKING_BLOCK";
-        this.stuckFrames = 0;
-        this.goTo(this.foundBlock.position);
+            // DETECTION CLE
+            if (hit.pickedMesh.Cle && !this.hasKey) {
+                const cle = hit.pickedMesh.Cle;
+                if (cle.isPickedUp) continue;
+                this.state = "SEEKING_KEY";
+                this.targetKey = cle;
+                this.goTo(cle.mesh.getAbsolutePosition());
+                return;
+            }
+            // DETECTION PORTE A CLE
+            if (hit.pickedMesh.name.toLowerCase().includes("porte") && this.state !== "SEEKING_DOOR" && this.hasKey) {
+                if (!hit.pickedMesh.parentPorte.requiresKey) break;
+                console.log("Porte détectée et le bot a une clé");
+                const porte = hit.pickedMesh.parentPorte;
+                if (porte.requiresKey && !porte.isOpen) {
+                    this.targetDoor = porte;
+                    this.state = "SEEKING_DOOR";
+                    const dest = porte.basePosition.clone();
+                    dest.y = 0;
+                    this.goTo(dest);
+                    return;
+                }
+            }
+
+            // DETECTION BLOC
+            const name = hit.pickedMesh.name?.toLowerCase();
+            if (name && name.includes("pushablebloc")) {
+                const blocObj = hit.pickedMesh.parentBloc;
+                if (!blocObj || blocObj.isLocked || blocObj.attachedBot) continue;
+                this.foundBlock = hit.pickedMesh;
+                this.state = "SEEKING_BLOCK";
+                this.stuckFrames = 0;
+                this.goTo(this.foundBlock.position);
+                return;
+            }
+        }
+    }
+
+    playAnimation(name, loop = true) {
+        if (this.currentAnimation === name) return;
+        Object.values(this.animations).forEach(anim => anim.stop());
+        if (this.animations[name]) {
+            this.animations[name].start(loop);
+            this.currentAnimation = name;
+        }
     }
 
     setTarget(targetPosition) {
+        if(this.id === 0)
+        {
+            console.log("Bot 0 setTarget called with: ", targetPosition);
+        }
         if (!targetPosition) return;
-
         this.target = targetPosition.clone();
         if (!this.navigationPlugin || !this.crowd) return;
-
         if (this.agentIndex < 0) {
             this.agentIndex = this.crowd.addAgent(
-                this.botMesh.position,
-                {
-                    radius: 0.45,
-                    height: 1.2,
-                    maxAcceleration: 40,
-                    maxSpeed: this.speed * 15,
-                    collisionQueryRange: 3,
-                    pathOptimizationRange: 0,
-                    separationWeight: 1.0
-                },
+                this.hitbox.position,
+                { radius: 0.45, height: 1.2, maxAcceleration: 40, maxSpeed: this.speed * 15, collisionQueryRange: 3, pathOptimizationRange: 0, separationWeight: 1.0 },
                 this.navigationPlugin
             );
         }
         this.crowd.agentGoto(this.agentIndex, targetPosition);
+    }
+
+    goTo(pos) {
+        if(this.id === 0)
+        {
+            console.log("Bot 0 goTo called with: ", pos);
+        }
+        if(this.agentIndex >= 0)
+        {
+            if(this.id === 0)
+            {
+                console.log("Bot 0 agentIndex: ", this.agentIndex);
+            }
+             this.crowd.agentGoto(this.agentIndex, pos);
+        } 
+        else {
+            
+            if(this.id === 0)
+            {
+                console.log("Bot 0 agentIndex < 0, calling setTarget instead");
+            }
+            this.setTarget(pos);
+        }
     }
 
     stop() {
@@ -133,11 +213,13 @@ export default class Bot {
         }
     }
 
-    goTo(newPosition) {
-        if (this.agentIndex >= 0) {
-            this.crowd.agentGoto(this.agentIndex, newPosition);
-        } else {
-            this.setTarget(newPosition);
-        }
+    mourir() {
+        if (this.isDying) return; // empêche les appels multiples
+        this.isDying = true;
+        this.stop();
+        this.playAnimation("Death", false);
+        setTimeout(() => {
+            if (this.scene.currentLevel) this.scene.currentLevel._botDies(this);
+        }, 1200);
     }
 }

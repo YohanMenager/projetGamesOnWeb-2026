@@ -1,0 +1,425 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+/* ====================== ECRAN DE SELECTION ====================== */
+
+#levelSelectScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    overflow: hidden;
+}
+
+#levelSelectScreen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(0, 255, 180, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 180, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+}
+
+#levelSelectScreen::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at center, rgba(0, 180, 120, 0.07) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+.select-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(2rem, 6vw, 4.5rem);
+    color: #fff;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 0.2em;
+    position: relative;
+    z-index: 1;
+}
+
+.select-title span {
+    color: #00ffb4;
+    text-shadow: 0 0 30px rgba(0, 255, 180, 0.6);
+}
+
+.select-subtitle {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    margin-bottom: 3.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.levels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+    max-width: 700px;
+    width: 90%;
+    position: relative;
+    z-index: 1;
+}
+
+.level-card {
+    border: 1px solid rgba(0, 255, 180, 0.2);
+    background: rgba(0, 255, 180, 0.03);
+    padding: 2rem 1rem;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.level-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0, 255, 180, 0.08) 0%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.level-card:hover {
+    border-color: rgba(0, 255, 180, 0.7);
+    background: rgba(0, 255, 180, 0.06);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 255, 180, 0.1);
+}
+
+.level-card:hover::before {
+    opacity: 1;
+}
+
+.level-card:active {
+    transform: translateY(0);
+}
+
+.level-number {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 2.5rem;
+    color: #00ffb4;
+    text-shadow: 0 0 20px rgba(0, 255, 180, 0.5);
+    line-height: 1;
+}
+
+.level-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+}
+
+.level-card.loading-card {
+    pointer-events: none;
+    opacity: 0.3;
+}
+
+.levels-loading {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.8rem;
+    letter-spacing: 0.3em;
+    position: relative;
+    z-index: 1;
+    animation: blink 1.2s ease infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+}
+
+/* ====================== HUD ====================== */
+
+#gameHud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 300;
+    pointer-events: none;
+    font-family: 'Share Tech Mono', monospace;
+    display: none;
+}
+
+.hud-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+}
+
+.hud-level {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+
+.hud-level-label {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+}
+
+.hud-level-number {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #00ffb4;
+    text-shadow: 0 0 12px rgba(0, 255, 180, 0.5);
+}
+
+.hud-bots {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.hud-bots-label {
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+}
+
+.hud-bots-count {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #fff;
+    transition: color 0.3s ease;
+}
+
+.hud-bots-count.updated {
+    color: #00ffb4;
+    text-shadow: 0 0 12px rgba(0, 255, 180, 0.7);
+}
+
+.hud-bots-icons {
+    display: flex;
+    gap: 4px;
+}
+
+.bot-icon {
+    width: 10px;
+    height: 10px;
+    background: #00ffb4;
+    opacity: 0.8;
+    transition: all 0.4s ease;
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.bot-icon.lost {
+    background: rgba(255, 255, 255, 0.15);
+    opacity: 0.3;
+}
+
+/* ====================== ECRAN DE VICTOIRE ====================== */
+
+#victoryScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: rgba(0, 0, 0, 0);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    transition: background 0.5s ease;
+}
+
+#victoryScreen.visible {
+    display: flex;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.victory-panel {
+    border: 1px solid rgba(0, 255, 180, 0.4);
+    background: rgba(5, 15, 12, 0.95);
+    padding: 3rem 4rem;
+    text-align: center;
+    animation: panelIn 0.4s ease forwards;
+}
+
+@keyframes panelIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.victory-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 2.5rem;
+    color: #00ffb4;
+    text-shadow: 0 0 40px rgba(0, 255, 180, 0.6);
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5rem;
+}
+
+.victory-sub {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.4em;
+    margin-bottom: 2.5rem;
+}
+
+.victory-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    pointer-events: all;
+}
+
+.victory-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    border: 1px solid rgba(0, 255, 180, 0.4);
+    background: transparent;
+    color: #fff;
+    transition: all 0.2s ease;
+}
+
+.victory-btn:hover {
+    background: rgba(0, 255, 180, 0.1);
+    border-color: rgba(0, 255, 180, 0.8);
+    color: #00ffb4;
+}
+
+.victory-btn.primary {
+    background: rgba(0, 255, 180, 0.15);
+    border-color: rgba(0, 255, 180, 0.6);
+    color: #00ffb4;
+}
+
+.victory-btn.primary:hover {
+    background: rgba(0, 255, 180, 0.25);
+}
+/* Icônes bots — trois états */
+.bot-icon.alive  { background: #ffffff; opacity: 0.85; }
+.bot-icon.exited { background: #00ffb4; box-shadow: 0 0 6px rgba(0,255,180,0.6); }
+.bot-icon.dead   { background: #ff4444; opacity: 0.7; }
+
+/* Compteurs sortis/morts/total */
+.hud-counters {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.hud-counter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+.hud-counter-value {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    transition: color 0.3s ease;
+}
+
+.hud-counter-value.exited { color: #00ffb4; }
+.hud-counter-value.dead   { color: #ff4444; }
+.hud-counter-value.total  { color: rgba(255,255,255,0.4); }
+.hud-counter-value.updated { text-shadow: 0 0 12px currentColor; }
+
+.hud-counter-label {
+    font-size: 0.5rem;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-top: 2px;
+}
+
+.hud-counter-sep {
+    color: rgba(255,255,255,0.15);
+    font-size: 1rem;
+    margin-bottom: 0.8rem;
+}
+
+/* Ecran d'échec — même structure que victoire */
+#failScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: rgba(0,0,0,0);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    transition: background 0.5s ease;
+}
+
+#failScreen.visible {
+    display: flex;
+    background: rgba(0,0,0,0.75);
+}
+
+.fail-panel {
+    border: 1px solid rgba(255, 68, 68, 0.4);
+    background: rgba(15, 5, 5, 0.95);
+    padding: 3rem 4rem;
+    text-align: center;
+    animation: panelIn 0.4s ease forwards;
+}
+
+.fail-title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 2.5rem;
+    color: #ff4444;
+    text-shadow: 0 0 40px rgba(255, 68, 68, 0.6);
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5rem;
+}
+
+.fail-sub {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.4em;
+    margin-bottom: 2.5rem;
+}
+.hud-menu-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    transition: all 0.2s ease;
+    pointer-events: all;
+}
+
+.hud-menu-btn:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}

@@ -19,14 +19,6 @@ export default class Bloc {
         this.material.diffuseColor = new BABYLON.Color3(0.8, 0.5, 0.2); 
         this.mesh.material = this.material;
 
-        // 2. === LA PHYSIQUE (Havok) ===
-        this.aggregate = new BABYLON.PhysicsAggregate(
-            this.mesh,
-            BABYLON.PhysicsShapeType.BOX,
-            { mass: 1, friction: 0.5, restitution: 0 },
-            scene
-        );
-
         // 3. === CIBLE ET PONT INVISIBLE ===
         this.targetPosition = targetPosition.clone();
         this.targetPosition.y = 0.05;
@@ -66,7 +58,7 @@ export default class Bloc {
             
             if (!this.attachedBot) {
                 for (let bot of this.scene.bots) {
-                    let dist = BABYLON.Vector3.Distance(this.mesh.position, bot.botMesh.position);
+                    let dist = BABYLON.Vector3.Distance(this.mesh.position, bot.hitbox.position);
                     if (dist < 1.5) {
                         this.attachToBot(bot);
                         break;
@@ -76,9 +68,9 @@ export default class Bloc {
                 const velocity = this.attachedBot.crowd.getAgentVelocity(this.attachedBot.agentIndex);
                 if (velocity && velocity.length() > 0.05) {
                     const dir = velocity.normalize();
-                    this.mesh.position.x = this.attachedBot.botMesh.position.x + dir.x * 1.5;
-                    this.mesh.position.z = this.attachedBot.botMesh.position.z + dir.z * 1.5;
-                    this.mesh.rotation.y = this.attachedBot.botMesh.rotation.y;
+                    this.mesh.position.x = this.attachedBot.hitbox.position.x + dir.x * 1.5;
+                    this.mesh.position.z = this.attachedBot.hitbox.position.z + dir.z * 1.5;
+                    this.mesh.rotation.y = this.attachedBot.hitbox.rotation.y;
                 }
                 this.checkWinCondition();
             }
@@ -93,10 +85,6 @@ export default class Bloc {
         this.attachedBot = bot;
         bot.attachedBloc = this;
 
-        if (this.aggregate) {
-            this.aggregate.dispose();
-            this.aggregate = null;
-        }
         bot.setTarget(this.targetPosition);
     }
 
@@ -114,7 +102,7 @@ export default class Bloc {
     }
 
     lockInPlace() {
-    if (this.isLocked) return;
+        if (this.isLocked) return;
         this.isLocked = true;
         this.attachedBot = null;
 
@@ -123,26 +111,17 @@ export default class Bloc {
         this.mesh.position.y = this.size.height / 2;
         this.mesh.rotation = BABYLON.Vector3.Zero();
 
-        // 2. Physique statique
-        if (this.aggregate) this.aggregate.dispose();
-        this.aggregate = new BABYLON.PhysicsAggregate(
-            this.mesh, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene
-        );
-
-        // 3. On active le fakeBridge et on lui donne une physique
-        //    pour qu'il soit détecté par Recast lors du rebake
+        // 2. On active le fakeBridge (il servira au NavMesh)
         this.fakeBridge.setEnabled(true);
-        new BABYLON.PhysicsAggregate(
-            this.fakeBridge, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene
-        );
 
-        // 4. On ajoute le fakeBridge aux staticMeshes et on rebake
+        // 3. On ajoute le fakeBridge aux staticMeshes et on rebake
         if (this.scene.currentLevel) {
+            this.scene.currentLevel.staticMeshes.push(this.mesh);
             this.scene.currentLevel.staticMeshes.push(this.fakeBridge);
-            this.scene.currentLevel.rebakeNavMesh(); // ← déjà appelé plus bas, on consolide ici
+            this.scene.currentLevel.rebakeNavMesh();
         }
 
-        // 5. Visuel
+        // 4. Visuel
         this.material.diffuseColor = new BABYLON.Color3(0.1, 0.9, 0.1);
         this.targetZoneMesh.isVisible = false;
 

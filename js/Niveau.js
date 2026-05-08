@@ -1,76 +1,73 @@
-//---------------------------Niveau.js---------------------------
 import Bot from "./Bot.js";
 import Obstacle from "./Objets/Obstacle.js";
 import Bloc from "./Objets/Bloc.js";
 import Porte from "./Objets/Porte.js";
 import Ennemi from "./Objets/Ennemi.js";
+import Cle from "./Objets/Cle.js";
+
 export default class Niveau {
     constructor(scene, levelData) {
         this.scene = scene;
         this.levelData = levelData;
-        // Listes pour garder une trace de tout ce qu'on crée (utile pour le Reset)
-        this.staticMeshes = []; 
+        this.staticMeshes = [];
         this.interactables = [];
-        this.scene.bots = []; // Rattaché à la scene car Bloc.js l'utilise
+        this.scene.bots = [];
         this.scene.ennemis = [];
+        this.collisionMeshes = [];
 
-        // Navigation
         this.navigationPlugin = null;
         this.crowd = null;
         this.navMeshDebug = null;
+        this._stagnationTimer = 0;
+        this._stagnationThreshold = 5; // secondes
+        this._lastBotPositions = new Map(); // bot.id -> { x, z }
 
+        // Zone de sortie (AABB pour détection)
+        this._exitZone = null; // { x, z, hw, hd } demi-largeurs
     }
 
-    /**
-     * Construit le niveau entier (Murs, Objets, NavMesh, Bots)
-     */
-    async build() {
-        console.log("=== Création du Niveau ===");
-        
-        this.buildEnvironment();
-        this.buildInteractables();
-        
-        await this.initNavMesh(); // Doit être fait après l'environnement statique
-        
-        this.spawnBots();
-        this.spawnEnnemis();
+async build() {
+    console.log("=== Création du Niveau ===");
+    this.scene.currentLevel = this;
 
-        this.isPreparationPhase = true;
-    }
+    this.buildEnvironment();
+    this.buildInteractables();
 
-    /**
-     * Crée le sol, les murs extérieurs, la zone de sortie et les murs intérieurs
-     */
+    await this.loadModels();
+
+    await this.initNavMesh();
+
+    this.spawnBots();
+    this.spawnEnnemis();
+
+    this.isPreparationPhase = true;
+}
+
     buildEnvironment() {
         const size = this.levelData.size;
 
-        // --- SOL ---
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: size, height: size }, this.scene);
         const groundMat = new BABYLON.PBRMaterial("gMat", this.scene);
         groundMat.albedoColor = new BABYLON.Color3(0.1, 0.1, 0.12);
         ground.material = groundMat;
-        new BABYLON.PhysicsAggregate(ground, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
         ground.isPickable = true;
         this.staticMeshes.push(ground);
 
         const rampeMat = new BABYLON.StandardMaterial("rampMat", this.scene);
-        rampeMat.diffuseColor = new BABYLON.Color3(1, 1, 1); // Blanc Pur
-        rampeMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2); // Peu de reflets brillants
+        rampeMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
+        rampeMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
 
-        // --- MURS EXTÉRIEURS ---
         this.createWall("wN", size, 1, 0, -size / 2);
         this.createWall("wS", size, 1, 0, size / 2);
         this.createWall("wW", 1, size, -size / 2, 0);
         this.createWall("wE", 1, size, size / 2, 0);
 
-        // --- MURS INTÉRIEURS (depuis le JSON) ---
         if (this.levelData.walls) {
             this.levelData.walls.forEach(w => {
                 this.createWall(w.name, w.width, w.depth, w.x, w.z);
             });
         }
 
-        // --- SORTIE ---
         if (this.levelData.exit) {
             const e = this.levelData.exit;
             const exitZone = BABYLON.MeshBuilder.CreateBox("exitZone", { width: e.width, height: 0.1, depth: e.depth }, this.scene);
@@ -79,70 +76,53 @@ export default class Niveau {
             exitMat.diffuseColor = new BABYLON.Color3(0, 1, 0);
             exitZone.material = exitMat;
             this.staticMeshes.push(exitZone);
+
+            // On mémorise la zone de sortie pour la détection
+            this._exitZone = {
+                x: e.x,
+                z: e.z,
+                hw: e.width / 2,
+                hd: e.depth / 2
+            };
         }
-        // --- PLATEFORMES ---
+
         if (this.levelData.platforms) {
             this.levelData.platforms.forEach(p => {
                 const plat = BABYLON.MeshBuilder.CreateBox(p.name, { width: p.width, height: p.y, depth: p.depth }, this.scene);
                 plat.material = rampeMat;
                 plat.material.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
-                plat.position.set(p.x, p.y / 2, p.z); // Centré sur Y
-                new BABYLON.PhysicsAggregate(plat, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
-                plat.isPickable = true; 
+                plat.position.set(p.x, p.y / 2, p.z);
+                plat.isPickable = true;
                 this.staticMeshes.push(plat);
+                this.collisionMeshes.push(plat);
             });
         }
 
-        // --- RAMPES ---
         if (this.levelData.ramps) {
             this.levelData.ramps.forEach(r => {
-                // Créer un pavé incliné avec CreateBox
-                // On allonge artificiellement la profondeur de 10% (* 1.1) pour mordre dans la plateforme
                 const ramp = BABYLON.MeshBuilder.CreateBox(r.name, { width: r.width, height: r.height, depth: r.depth * 1.1 }, this.scene);
-                // ramp.material = rampeMat;
-                // ramp.material.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1); 
                 ramp.isPickable = true;
-                ramp.position.set(r.x, r.y || 0, r.z); 
-
-                // On garde la vraie profondeur (r.depth) pour calculer le bon angle
+                ramp.position.set(r.x, r.y || 0, r.z);
                 ramp.rotation.x = Math.atan(r.height / r.depth);
-                
-                // Tourner horizontalement si spécifié
                 if (r.rotationY) ramp.rotation.y = r.rotationY;
-                
-                // Recalcule le bounding box
                 ramp.refreshBoundingInfo();
-                
-                // Bake les transformations dans les vertices
                 ramp.computeWorldMatrix(true);
                 ramp.bakeCurrentTransformIntoVertices();
                 ramp.refreshBoundingInfo();
-
-                new BABYLON.PhysicsAggregate(
-                    ramp, 
-                    BABYLON.PhysicsShapeType.MESH, 
-                    { mass: 0, friction: 0.5 }, 
-                    this.scene
-                );
-                
                 this.staticMeshes.push(ramp);
+                this.collisionMeshes.push(ramp);
             });
         }
     }
 
     createWall(name, w, d, x, z) {
         const wall = BABYLON.MeshBuilder.CreateBox(name, { width: w, height: 3, depth: d }, this.scene);
-        // wall.material = new BABYLON.StandardMaterial(name + "Mat", this.scene);
-        // wall.material.diffuseColor = new BABYLON.Color3(0.6, 0.6, 0.6);
         wall.position.set(x, 1.5, z);
-        wall.isPickable = false;  
-        new BABYLON.PhysicsAggregate(wall, BABYLON.PhysicsShapeType.BOX, { mass: 0 }, this.scene);
+        wall.isPickable = true;
         this.staticMeshes.push(wall);
+        this.collisionMeshes.push(wall);
     }
 
-    /**
-     * Crée les obstacles, portes et blocs à partir du JSON
-     */
     buildInteractables() {
         if (!this.levelData.interactables) return;
 
@@ -153,25 +133,25 @@ export default class Niveau {
                     obj = new Obstacle(this.scene, new BABYLON.Vector3(item.x, 0, item.z), { width: item.width, height: 2, depth: item.depth }, 20);
                     break;
                 case "porte":
-                    obj = new Porte(this.scene, new BABYLON.Vector3(item.x, 0, item.z), "player", false, { width: item.width, height: 3, depth: item.depth });
+                    obj = new Porte(this.scene, new BABYLON.Vector3(item.x, 0, item.z), item.owner || "player", item.requiresKey || false, { width: item.width, height: 2.5, depth: item.depth });
                     break;
                 case "bloc":
                     obj = new Bloc(
-                        this.scene, 
-                        // On récupère le Y si le bloc est en hauteur, sinon on met 0
-                        new BABYLON.Vector3(item.startX, item.startY || 0, item.startZ), 
-                        new BABYLON.Vector3(item.targetX, item.targetY || 0, item.targetZ), 
+                        this.scene,
+                        new BABYLON.Vector3(item.startX, item.startY || 0, item.startZ),
+                        new BABYLON.Vector3(item.targetX, item.targetY || 0, item.targetZ),
                         { width: item.width, height: item.height || 2, depth: item.depth }
                     );
                     break;
+                case "cle":
+                    obj = new Cle(this.scene, new BABYLON.Vector3(item.x, 0, item.z));
+                    break;
             }
             if (obj) this.interactables.push(obj);
+            if (obj && obj.mesh) this.collisionMeshes.push(obj.mesh);
         });
     }
 
-    /**
-     * Initialise Recast (NavMesh) basé sur les meshes statiques
-     */
     async initNavMesh() {
         if (!window.navigationPlugin) {
             window.navigationPlugin = new BABYLON.RecastJSPlugin();
@@ -179,46 +159,67 @@ export default class Niveau {
         this.navigationPlugin = window.navigationPlugin;
 
         const navMeshParameters = {
-            cs: 0.1, ch: 0.1, 
-            walkableSlopeAngle: 60, 
-            walkableHeight: 1.0, 
+            cs: 0.1, ch: 0.1,
+            walkableSlopeAngle: 60,
+            walkableHeight: 1.0,
             walkableClimb: 2.0,
-            walkableRadius: 0.5, maxEdgeLen: 12,
+            walkableRadius: 0.3,  
+            maxEdgeLen: 12,
             maxSimplificationError: 1.3, minRegionArea: 4,
             mergeRegionArea: 20, maxVertsPerPoly: 6,
             detailSampleDist: 6, detailSampleMaxError: 1,
             borderSize: 1, tileSize: 64
         };
 
-        // 1. On génère le NavMesh 
         this.navigationPlugin.createNavMesh(this.staticMeshes, navMeshParameters);
-
-        // 2. On affiche le debug juste après
-        this.navMeshDebug = this.navigationPlugin.createDebugNavMesh(this.scene);
-        const navMat = new BABYLON.StandardMaterial("navMat", this.scene);
-        navMat.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.8); // Violet pour bien le voir
-        navMat.alpha = 0.6;
-        this.navMeshDebug.material = navMat;
-        this.navMeshDebug.position.y = 0.05; 
-
         this.crowd = this.navigationPlugin.createCrowd(10, 0.5, this.scene);
     }
 
-    /**
-     * Fait apparaître les bots
-     */
     spawnBots() {
         if (!this.levelData.bots) return;
 
-        this.levelData.bots.forEach(bData => {
-            const mesh = BABYLON.MeshBuilder.CreateBox("botMesh_" + bData.id, { size: 1 }, this.scene);
-            mesh.position = new BABYLON.Vector3(bData.startX, bData.startY || 0.8, bData.startZ);// Y par défaut à 0.8 pour être au-dessus du sol
-            
-            const bot = new Bot(
-                mesh, bData.id, 0.15, 1, this.scene, 
-                this.navigationPlugin, this.crowd, 
-                new BABYLON.Vector3(bData.targetX, bData.targetY || 0.8, bData.targetZ)
-            );
+        this.levelData.bots.forEach((bData, index) => {
+            const root = new BABYLON.TransformNode("robotRoot_" + index, this.scene);
+
+            //  Position AVANT la boucle de clonage
+            root.position = new BABYLON.Vector3(bData.startX, bData.startY || 0, bData.startZ);
+
+            const clonedMeshes = [];
+
+            this.loadedModels.robot.meshes.forEach(mesh => {
+                if (mesh instanceof BABYLON.TransformNode && !(mesh instanceof BABYLON.Mesh)) return;
+                const clone = mesh.clone(mesh.name + "_clone_" + index);
+                if (!clone) return;
+                clone.parent = root;
+                clone.setEnabled(true)
+                clone.isPickable = false;
+                clone.alwaysSelectAsActiveMesh = true;
+                clonedMeshes.push(clone);
+            });
+
+            //  Scaling appliqué UNE FOIS, après la boucle, sur les bons clones
+            // Dans spawnBots, après la boucle de clonage :
+            clonedMeshes.forEach(m => {
+                m.scaling.setAll(0.01);
+                m.rotation.y = Math.PI; // corrige l'inversion
+            });
+
+            const hitbox = BABYLON.MeshBuilder.CreateBox("botHitbox_" + index,
+                { width: 1, height: 2, depth: 1 }, this.scene);
+            hitbox.isVisible = false;
+            hitbox.isPickable = true;
+            hitbox.position.copyFrom(root.position);
+
+            const animations = {};
+            this.loadedModels.robot.animationGroups.forEach(anim => {
+                animations[anim.name] = anim.clone(anim.name + "_" + index);
+            });
+
+            const bot = new Bot(root, hitbox, animations, bData.id, 0.30, 1,
+                this.scene, this.navigationPlugin, this.crowd,
+                new BABYLON.Vector3(this.levelData.exit.x, this.levelData.exit.y || 0, this.levelData.exit.z));
+
+            hitbox.Bot = bot;
             this.scene.bots.push(bot);
         });
     }
@@ -226,66 +227,86 @@ export default class Niveau {
     spawnEnnemis() {
         if (!this.levelData.enemies) return;
 
-        // Création du matériau rouge (une seule fois pour tous les ennemis)
-        const ennemiMat = new BABYLON.StandardMaterial("ennemiMat", this.scene);
-        ennemiMat.diffuseColor = new BABYLON.Color3(1, 0, 0); // Rouge
-        ennemiMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+        this.levelData.enemies.forEach((eData, index) => {
+            const root = new BABYLON.TransformNode("enemyRoot_" + index, this.scene);
 
-        this.levelData.enemies.forEach(eData => {
-            const mesh = BABYLON.MeshBuilder.CreateBox("ennemiMesh_" + eData.id, { size: 1 }, this.scene);
-            mesh.position = new BABYLON.Vector3(eData.startX, eData.startY || 0.8, eData.startZ);
-            mesh.material = ennemiMat;
-            
-            // Formatage des points de ronde si le JSON en contient
-            let patrolPoints = [];
-            if (eData.patrolPoints) {
-                patrolPoints = eData.patrolPoints.map(p => new BABYLON.Vector3(p.x, 0.8, p.z));
-            }
+            //  Position AVANT la boucle de clonage
+            root.position = new BABYLON.Vector3(eData.startX, eData.startY || 0, eData.startZ);
 
-            const ennemi = new Ennemi(
-                mesh, eData.id, eData.speed || 0.12, 1, this.scene, 
-                this.navigationPlugin, this.crowd, patrolPoints
-            );
-            
+            const clonedMeshes = [];
+
+            this.loadedModels.ennemi.meshes.forEach(mesh => {
+                if (mesh instanceof BABYLON.TransformNode && !(mesh instanceof BABYLON.Mesh)) return;
+                const clone = mesh.clone(mesh.name + "_clone_" + index);
+                if (!clone) return;
+                clone.parent = root;
+                clone.setEnabled(true)
+                clone.isPickable = false;
+                clone.alwaysSelectAsActiveMesh = true;
+                clonedMeshes.push(clone);
+            });
+
+            //  Scaling appliqué 
+            clonedMeshes.forEach(m => {
+                m.scaling.setAll(0.2);
+                m.rotation.y = Math.PI;
+                m.rotation.x = Math.PI / 2;           
+            });
+
+            const hitbox = BABYLON.MeshBuilder.CreateBox("enemyHitbox_" + index,
+                { width: 0.8, height: 1, depth: 0.8 }, this.scene);
+            hitbox.isVisible = false;
+            hitbox.isPickable = true;
+            hitbox.position.copyFrom(root.position);
+
+            const animations = {};
+            this.loadedModels.ennemi.animationGroups.forEach(anim => {
+                animations[anim.name] = anim.clone(anim.name + "_" + index);
+            });
+
+            const patrolPoints = (eData.patrolPoints || []).map(
+                p => new BABYLON.Vector3(p.x, 0, p.z));
+
+            const ennemi = new Ennemi(root, hitbox, animations, eData.id,
+                eData.speed || 0.4, 1, this.scene,
+                this.navigationPlugin, this.crowd, patrolPoints);
+
+            hitbox.Ennemi = ennemi;
             this.scene.ennemis.push(ennemi);
         });
     }
 
-    /**
-     * Démarre l'action
-     */
     demarrer() {
         console.log("Phase : ACTION");
-        this.interactables.forEach(i => { 
+        this.interactables.forEach(i => {
             if (i instanceof Bloc) return;
-            if (i.mesh) i.mesh.isPickable = false; 
-            if (i.partA) i.partA.isPickable = false;
-            if (i.partB) i.partB.isPickable = false;
+            if (i.mesh) i.mesh.isPickable = false;
+            if (i.partA && i.type === "player") i.partA.isPickable = false;
+            if (i.partB && i.type === "player") i.partB.isPickable = false;
         });
-        
 
-        // Ajouter les obstacles et portes au navmesh au démarrage
         this.interactables.forEach(item => {
-            if (item instanceof Obstacle && item.ajouterAuNavMesh) {
-                item.ajouterAuNavMesh();
-            } else if (item instanceof Porte && item.updateNavMesh) {
-                item.updateNavMesh();
-            }else if (item instanceof Bloc && item.bloquerLeTrou) { 
-                item.bloquerLeTrou(); 
+            if (item instanceof Obstacle) {
+                this.staticMeshes.push(item.mesh);
+                this.collisionMeshes.push(item.mesh);
             }
         });
-        
-        // On relance les bots vers leurs objectifs
+
+        this.rebakeNavMesh();
+
+        this.interactables.forEach(item => {
+            if (item instanceof Porte && item.updateNavMesh) {
+                item.updateNavMesh();
+            }
+        });
+
         this.scene.bots.forEach(bot => {
             if (!bot.attachedBloc) bot.setTarget(bot.objective);
         });
-
+        this.scene.ennemis.forEach(ennemi => ennemi.demarrer());
         this.isPreparationPhase = false;
-    }   
+    }
 
-    /**
-     * Met à jour la logique de l'IA à chaque frame (à appeler dans la render loop)
-     */
     update(deltaTime) {
         if (this.isPreparationPhase) return;
 
@@ -300,121 +321,101 @@ export default class Niveau {
         this.scene.ennemis.forEach(ennemi => {
             if (ennemi.update) ennemi.update();
         });
+
+        // Detection des bots qui atteignent la sortie
+        this._checkExits();
+        if (window.gameHud && window.gameHud.botsExited > 0 && this.scene.bots.length > 0) {
+            this._checkStagnation(deltaTime);
+        }
     }
 
-    /**
-     * Nettoie tout le niveau (destruction totale) pour pouvoir le recommencer à zéro
-     */
-    async reset() {
-        console.log("=== RESET DU NIVEAU ===");
+    // ====================== DETECTION DE SORTIE ======================
 
-        this.destroy(); // Nettoie tout ce qui a été créé (meshes, bots, navmesh...)
-        this.isPreparationPhase = true; // On repasse en préparation pendant le reset pour éviter les bugs d'update
+    _checkExits() {
+        if (!this._exitZone || this.scene.bots.length === 0) return;
 
-        // 4. Reconstruire le niveau depuis les données JSON
-        await this.build();
-    }
+        const zone = this._exitZone;
+        const toRemove = [];
 
-    destroy() {
-        // Appelée si on veut complètement supprimer le niveau (avant de charger un autre)
-        //on n'appelle pas reset, on détruit tout directement car reset reconstruit le niveau après nettoyage, ce qui est inutile ici.
-        console.log("=== DESTRUCTION DU NIVEAU ===");
-
-        // 1. Détruire les bots
         this.scene.bots.forEach(bot => {
-            if (bot.botMesh) bot.botMesh.dispose();  // ← botMesh, pas mesh
-        });
-        this.scene.bots = [];
-        console.log("Bots détruits");
-
-        this.scene.ennemis.forEach(ennemi => {
-            if (ennemi.mesh) ennemi.mesh.dispose();
-        });
-        this.scene.ennemis = [];
-        console.log("Ennemis détruits");
-
-        // 2. Détruire les interactables (blocs, portes...)
-        this.interactables.forEach(item => {
-            // 1. Disposer l'aggregate 
-            if (item.aggregate) {
-                item.aggregate.dispose();
-                item.aggregate = null;
+            const p = bot.hitbox.position;
+            if (
+                Math.abs(p.x - zone.x) < zone.hw &&
+                Math.abs(p.z - zone.z) < zone.hd
+            ) {
+                toRemove.push(bot);
             }
-            // 2. Disposer le mesh principal
-            if (item.mesh) item.mesh.dispose();
-            
-            // 3. Cas spécial pour les Portes (qui ont deux vantaux)
-            if (item.partA) {
-                if (item.partA.aggregate) item.partA.aggregate.dispose();
-                item.partA.dispose();
-            }
-            if (item.partB) {
-                if (item.partB.aggregate) item.partB.aggregate.dispose();
-                item.partB.dispose();
-            }
-            
-            // 4. Nettoyer les observateurs et autres
-            if (item.observer) this.scene.onBeforeRenderObservable.remove(item.observer);
-            if (item.targetZoneMesh) item.targetZoneMesh.dispose();
         });
-        this.interactables = [];
-        console.log("Interactables détruits");
 
-        // 3. Détruire l'environnement statique
-        this.staticMeshes.forEach(mesh => {
-            if (mesh.aggregate) mesh.aggregate.dispose();
-            mesh.dispose();
-        });
-        this.staticMeshes = [];
-        console.log("Environnement statique détruit");
-
-        if (this.navMeshDebug) this.navMeshDebug.dispose();
-        if (this.crowd) this.crowd.dispose();
-        this.navMeshDebug = null;
-        this.crowd = null;
-        console.log("NavMesh et foule détruits");
-
+        toRemove.forEach(bot => this._botExits(bot));
     }
 
-async rebakeNavMesh() {
-    if (!this.navigationPlugin) return;
-    console.log("Rebake du NavMesh...");
+    _botExits(bot) {
+        console.log(`Bot ${bot.id} a atteint la sortie !`);
+        bot.stop();
+        if (bot.visualMesh) bot.visualMesh.dispose();
+        const index = this.scene.bots.indexOf(bot);
+        if (index !== -1) this.scene.bots.splice(index, 1);
+        this._lastBotPositions.delete(bot.id);
+        this._stagnationTimer = 0; // reset le timer a chaque sortie
 
-    const navMeshParameters = {
-        cs: 0.2, ch: 0.2,
-        walkableSlopeAngle: 60,
-        walkableHeight: 1.0,
-        walkableClimb: 1.0,
-        walkableRadius: 0.5, maxEdgeLen: 12,
-        maxSimplificationError: 1.3, minRegionArea: 8,
-        mergeRegionArea: 20, maxVertsPerPoly: 6,
-        detailSampleDist: 6, detailSampleMaxError: 1,
-        borderSize: 1, tileSize: 64
-    };
+        if (window.gameHud) {
+            const remaining = window.gameHud.botReachedExit();
+            if (remaining === 0) setTimeout(() => window.gameHud.showVictory(), 800);
+        }
+    }
 
-    // 1. Sauvegarder les cibles AVANT de toucher à quoi que ce soit
-    const botTargets = this.scene.bots.map(bot => ({
-        bot,
-        target: bot.target ? bot.target.clone() : bot.objective.clone()
-    }));
+    _botDies(bot) {
+        console.log(`Bot ${bot.id} est mort.`);
+        bot.stop();
+        if (bot.visualMesh) bot.visualMesh.dispose();
+        const index = this.scene.bots.indexOf(bot);
+        if (index !== -1) this.scene.bots.splice(index, 1);
+        if (window.gameHud) {
+            const remaining = window.gameHud.botDied();
+            if (remaining === 0 && window.gameHud.botsExited === 0) setTimeout(() => window.gameHud.showFail(), 800);
+            else if (remaining === 0 && window.gameHud.botsExited > 0) setTimeout(() => window.gameHud.showVictory(), 800);
+        }
+    }
 
+    // ====================== NAVMESH ======================
 
-    const ennemiTargets = this.scene.ennemis.map(ennemi => ({
-            ennemi,
-            target: ennemi.target ? ennemi.target.clone() : ennemi.mesh.position.clone()
+    async rebakeNavMesh() {
+        if (!this.navigationPlugin) return;
+        console.log("Rebake du NavMesh...");
+
+        const navMeshParameters = {
+            cs: 0.1, ch: 0.1,
+            walkableSlopeAngle: 60,
+            walkableHeight: 1.0,
+            walkableClimb: 2.0,
+            walkableRadius: 0.3,  
+            maxEdgeLen: 12,
+            maxSimplificationError: 1.3, minRegionArea: 4,
+            mergeRegionArea: 20, maxVertsPerPoly: 6,
+            detailSampleDist: 6, detailSampleMaxError: 1,
+            borderSize: 1, tileSize: 64
+        };
+
+        const botTargets = this.scene.bots.map(bot => ({
+            bot,
+            target: bot.target ? bot.target.clone() : bot.objective.clone()
         }));
 
-    // 2. Supprimer tous les agents
-    this.scene.bots.forEach(bot => {
-        if (bot.agentIndex >= 0) {
-            this.crowd.removeAgent(bot.agentIndex);
-            bot.agentIndex = -1;
-        }
-        // Reset de this.target pour forcer setTarget à recréer l'agent
-        bot.target = null;
-    });
+        const ennemiTargets = this.scene.ennemis.map(ennemi => ({
+            ennemi,
+            target: ennemi.target ? ennemi.target.clone() : ennemi.hitbox.position.clone()
+        }));
 
-    this.scene.ennemis.forEach(ennemi => {
+        this.scene.bots.forEach(bot => {
+            if (bot.agentIndex >= 0) {
+                this.crowd.removeAgent(bot.agentIndex);
+                bot.agentIndex = -1;
+            }
+            bot.target = null;
+        });
+
+        this.scene.ennemis.forEach(ennemi => {
             if (ennemi.agentIndex >= 0) {
                 this.crowd.removeAgent(ennemi.agentIndex);
                 ennemi.agentIndex = -1;
@@ -422,48 +423,161 @@ async rebakeNavMesh() {
             ennemi.target = null;
         });
 
+        this.navigationPlugin.createNavMesh(this.staticMeshes, navMeshParameters);
 
-    // 3. Rebake
-    this.navigationPlugin.createNavMesh(this.staticMeshes, navMeshParameters);
+        this.interactables.forEach(item => {
+            if (item instanceof Obstacle && item.recastObstacle !== null) {
+                item.recastObstacle = null;
+            } else if (item instanceof Porte && item.recastObstacle !== null) {
+                item.recastObstacle = null;
+                item.updateNavMesh();
+            }
+        });
 
-    // 4. Remettre les obstacles dynamiques
-    this.interactables.forEach(item => {
-        if (item instanceof Obstacle && item.recastObstacle !== null) {
-            item.recastObstacle = null;
-            item.ajouterAuNavMesh();
-        } else if (item instanceof Porte && item.recastObstacle !== null) {
-            item.recastObstacle = null;
-            item.updateNavMesh();
-        }
-    });
+        if (this.crowd) this.crowd.dispose();
+        this.crowd = this.navigationPlugin.createCrowd(10, 0.5, this.scene);
 
-    // 5. Recréer la foule
-    if (this.crowd) this.crowd.dispose();
-    this.crowd = this.navigationPlugin.createCrowd(10, 0.5, this.scene);
+        botTargets.forEach(({ bot, target }) => {
+            bot.crowd = this.crowd;
+            bot.setTarget(target);
+        });
 
-    // 6. Re-enregistrer les bots — bot.target est null donc setTarget s'exécute toujours
-    botTargets.forEach(({ bot, target }) => {
-        bot.crowd = this.crowd;
-        bot.setTarget(target);
-    });
-
-    ennemiTargets.forEach(({ ennemi, target }) => {
+        ennemiTargets.forEach(({ ennemi, target }) => {
             ennemi.crowd = this.crowd;
             ennemi.setTarget(target);
         });
 
-    // 7. Debug mesh
-    if (this.navMeshDebug)
-    {
-        this.navMeshDebug.dispose();
-        this.navMeshDebug = this.navigationPlugin.createDebugNavMesh(this.scene);
-        const navMat = new BABYLON.StandardMaterial("navMat", this.scene);
-        navMat.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.8);
-        navMat.alpha = 0.6;
-        this.navMeshDebug.material = navMat;
-        this.navMeshDebug.position.y = 0.05;
-    } 
+        if (this.navMeshDebug) {
+            this.navMeshDebug.dispose();
+            this.navMeshDebug = this.navigationPlugin.createDebugNavMesh(this.scene);
+            const navMat = new BABYLON.StandardMaterial("navMat", this.scene);
+            navMat.diffuseColor = new BABYLON.Color3(0.8, 0.2, 0.8);
+            navMat.alpha = 0.6;
+            this.navMeshDebug.material = navMat;
+            this.navMeshDebug.position.y = 0.05;
+        }
 
-    console.log("Rebake terminé !");
+        console.log("Rebake terminé !");
+    }
+
+    // ====================== RESET / DESTROY ======================
+
+    async reset() {
+        console.log("=== RESET DU NIVEAU ===");
+        this.destroy();
+        this.isPreparationPhase = true;
+        this._stagnationTimer = 0;
+        this._lastBotPositions = new Map();
+        await this.build();
+    }
+
+    destroy() {
+        console.log("=== DESTRUCTION DU NIVEAU ===");
+
+        this.scene.bots.forEach(bot => {
+            bot.stop();
+            if (bot.visualMesh) bot.visualMesh.dispose();
+            if (bot.hitbox) bot.hitbox.dispose();
+        });
+        this.scene.bots = [];
+
+        this.scene.ennemis.forEach(ennemi => {
+            ennemi.stop();
+            if (ennemi.visualMesh) ennemi.visualMesh.dispose();
+            if (ennemi.hitbox) ennemi.hitbox.dispose();
+        });
+        this.scene.ennemis = [];
+
+        this.interactables.forEach(item => {
+            if (item.mesh) item.mesh.dispose();
+            if (item.partA) item.partA.dispose();
+            if (item.partB) item.partB.dispose();
+            if (item.observer) this.scene.onBeforeRenderObservable.remove(item.observer);
+            if (item.targetZoneMesh) item.targetZoneMesh.dispose();
+            if (item.fakeBridge) item.fakeBridge.dispose();
+        });
+        this.interactables = [];
+
+        this.staticMeshes.forEach(mesh => mesh.dispose());
+        this.staticMeshes = [];
+        this.collisionMeshes = [];
+
+        if (this.navMeshDebug) this.navMeshDebug.dispose();
+        if (this.crowd) this.crowd.dispose();
+        this.navMeshDebug = null;
+        this.crowd = null;
+        this._exitZone = null;
+
+        console.log("Niveau détruit.");
+    }
+
+
+    async loadModels() {
+
+        const robotResult =
+            await BABYLON.SceneLoader.ImportMeshAsync(
+                "",
+                "/resources/models/",
+                "robot.glb",
+                this.scene
+            );
+            
+        const ennemiResult =
+            await BABYLON.SceneLoader.ImportMeshAsync(
+                "",
+                "/resources/models/",
+                "ennemi.glb",
+                this.scene
+            );
+
+        this.loadedModels = {
+
+            robot: {
+                meshes: robotResult.meshes,
+                animationGroups: robotResult.animationGroups
+            },
+
+            ennemi: {
+                meshes: ennemiResult.meshes,
+                animationGroups: ennemiResult.animationGroups
+            }
+        };
+
+        robotResult.meshes.forEach(m => {
+            m.setEnabled(false);
+        });
+
+        ennemiResult.meshes.forEach(m => {
+            m.setEnabled(false);
+        });
+    }
+    _checkStagnation(deltaTime) {
+    const MOVE_THRESHOLD = 0.05; // distance minimale pour considerer qu'un bot bouge
+    let anyBotMoving = false;
+
+    for (const bot of this.scene.bots) {
+        const pos = bot.hitbox.position;
+        const last = this._lastBotPositions.get(bot.id);
+
+        if (last) {
+            const dx = pos.x - last.x;
+            const dz = pos.z - last.z;
+            if (Math.sqrt(dx * dx + dz * dz) > MOVE_THRESHOLD) {
+                anyBotMoving = true;
+            }
+        }
+
+        this._lastBotPositions.set(bot.id, { x: pos.x, z: pos.z });
+    }
+
+    if (anyBotMoving) {
+        this._stagnationTimer = 0;
+    } else {
+        this._stagnationTimer += deltaTime;
+        if (this._stagnationTimer >= this._stagnationThreshold) {
+            this._stagnationTimer = 0;
+            setTimeout(() => window.gameHud.showVictory(), 800);
+        }
+    }
 }
 }
