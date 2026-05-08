@@ -7,7 +7,9 @@ var engine = new BABYLON.Engine(canvas, true, { stencil: false }, true);
 var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
-const cheminNiveau = "resources/niveaux/";
+
+// L'URL magique qui s'adapte partout (Localhost ET GitHub Pages)
+const cheminNiveau = new URL("../resources/niveaux/", import.meta.url).href;
 // ====================== HUD ======================
 const hud = new Hud();
 
