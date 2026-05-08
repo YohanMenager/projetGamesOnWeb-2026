@@ -9,7 +9,7 @@ var scene = createScene(engine, canvas);
 scene.currentLevel = null;
 
 
-const cheminNiveau = BASE_URL + "./resources/niveaux/";
+const cheminNiveau = "./resources/niveaux/";
 
 // LIGNE DE DEBUG : Très important pour vérifier dans la console du navigateur
 console.log("Le chemin configuré pour les niveaux est :", cheminNiveau);
