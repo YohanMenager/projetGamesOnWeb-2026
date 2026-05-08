@@ -8,8 +8,7 @@ var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
 // Détecte automatiquement le chemin racine
-const basePath = window.location.pathname.includes('/projetGamesOnWeb-2026/') ? '/projetGamesOnWeb-2026/' : './';
-const cheminNiveau = basePath + "resources/niveaux/";
+const cheminNiveau = window.basePath + "resources/niveaux/";
 
 // ====================== HUD ======================
 const hud = new Hud();

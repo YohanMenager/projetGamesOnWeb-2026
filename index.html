@@ -23,6 +23,14 @@
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.babylonjs.com/recast.js"></script>
 
+    <script>
+        // Détecte le chemin de base pour GitHub Pages
+        window.basePath = window.location.pathname.includes('/projetGamesOnWeb-2026/') 
+            ? '/projetGamesOnWeb-2026/' 
+            : './';
+        console.log('Base path:', window.basePath);
+    </script>
+
     <script type="module" src="./js/main.js?id=133"></script>
 
     <button id="phaseButton" class="btn btn-outline-info">Démarrer</button>
