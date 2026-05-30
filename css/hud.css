@@ -423,3 +423,410 @@
     border-color: rgba(255, 255, 255, 0.6);
     color: #fff;
 }
+/* Bouton aide proéminent sur l'écran de sélection */
+.help-open-btn-prominent {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    padding: 0.65rem 1.8rem;
+    cursor: pointer;
+    border: 1px solid rgba(0, 255, 180, 0.45);
+    background: rgba(0, 255, 180, 0.06);
+    color: rgba(0, 255, 180, 0.8);
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 1;
+    margin-top: 2.5rem;
+}
+
+.help-open-btn-prominent:hover {
+    background: rgba(0, 255, 180, 0.14);
+    border-color: rgba(0, 255, 180, 0.9);
+    color: #00ffb4;
+    box-shadow: 0 0 18px rgba(0, 255, 180, 0.2);
+}
+
+/* Bouton son dans le HUD */
+.hud-sound-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 255, 180, 0.35);
+    background: rgba(0, 255, 180, 0.05);
+    color: rgba(0, 255, 180, 0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    pointer-events: all;
+    line-height: 1;
+}
+
+.hud-sound-btn:hover {
+    background: rgba(0, 255, 180, 0.15);
+    border-color: rgba(0, 255, 180, 0.8);
+    color: #00ffb4;
+    box-shadow: 0 0 14px rgba(0, 255, 180, 0.25);
+}
+
+
+
+.help-open-btn,
+.hud-help-btn {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 255, 180, 0.35);
+    background: rgba(0, 255, 180, 0.05);
+    color: rgba(0, 255, 180, 0.7);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    pointer-events: all;
+    line-height: 1;
+}
+
+.help-open-btn:hover,
+.hud-help-btn:hover {
+    background: rgba(0, 255, 180, 0.15);
+    border-color: rgba(0, 255, 180, 0.8);
+    color: #00ffb4;
+    box-shadow: 0 0 14px rgba(0, 255, 180, 0.25);
+}
+
+/* Bouton dans le menu de sélection : positionné en bas à droite */
+.help-open-btn {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    font-size: 1rem;
+    z-index: 1;
+}
+
+/* ====================== OVERLAY D'AIDE ====================== */
+
+#helpOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    background: rgba(0, 0, 0, 0);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    transition: background 0.3s ease;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#helpOverlay.visible {
+    display: flex;
+    background: rgba(0, 0, 0, 0.82);
+}
+
+.help-panel {
+    position: relative;
+    border: 1px solid rgba(0, 255, 180, 0.3);
+    background: rgba(4, 12, 10, 0.97);
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 2.5rem 2.5rem 2rem;
+    box-sizing: border-box;
+    animation: panelIn 0.35s ease forwards;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 255, 180, 0.2) transparent;
+}
+
+.help-panel::-webkit-scrollbar {
+    width: 4px;
+}
+.help-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+.help-panel::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 180, 0.2);
+}
+
+.help-close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.35);
+    width: 1.8rem;
+    height: 1.8rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.help-close-btn:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #fff;
+}
+
+/* Header */
+.help-header {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.5rem;
+    color: #fff;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.help-title-accent {
+    color: #00ffb4;
+    text-shadow: 0 0 20px rgba(0, 255, 180, 0.5);
+}
+
+.help-title-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.4em;
+    font-weight: 400;
+    margin-top: 0.15rem;
+    margin-bottom: 2rem;
+}
+
+/* Sections */
+.help-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.help-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.help-section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.help-section-text {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.7;
+    margin: 0;
+}
+
+.help-section-text em {
+    font-style: normal;
+    color: #00ffb4;
+    font-weight: bold;
+}
+
+/* Badges de phase */
+.help-badge {
+    display: inline-block;
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    font-weight: 700;
+}
+
+.help-badge.phase-prep {
+    background: rgba(0, 150, 255, 0.12);
+    border: 1px solid rgba(0, 150, 255, 0.4);
+    color: #60c8ff;
+}
+
+.help-badge.phase-sim {
+    background: rgba(0, 255, 180, 0.08);
+    border: 1px solid rgba(0, 255, 180, 0.3);
+    color: #00ffb4;
+}
+
+/* Diviseur */
+.help-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 180, 0.15), transparent);
+    margin: 0.2rem 0;
+}
+
+/* Liste des éléments */
+.help-elements {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.help-element {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.help-element-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    margin-top: 3px;
+    border-radius: 2px;
+}
+
+.help-element-icon.obstacle {
+    background: rgba(255, 140, 0, 0.55);
+    border: 1px solid rgba(255, 140, 0, 0.8);
+}
+
+.help-element-icon.door-blue {
+    background: rgba(40, 120, 255, 0.55);
+    border: 1px solid rgba(80, 160, 255, 0.8);
+}
+
+.help-element-icon.door-red {
+    background: rgba(220, 50, 50, 0.55);
+    border: 1px solid rgba(255, 80, 80, 0.8);
+}
+
+.help-element-icon.door-yellow {
+    background: rgba(230, 200, 0, 0.55);
+    border: 1px solid rgba(255, 220, 0, 0.8);
+}
+
+.help-element-icon.block {
+    background: rgba(160, 160, 180, 0.4);
+    border: 1px solid rgba(200, 200, 220, 0.5);
+    clip-path: none;
+}
+
+.help-element div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.help-element strong {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.75);
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+
+.help-element span {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.38);
+    line-height: 1.5;
+}
+
+/* Liste IA */
+.help-ai-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.help-ai-list li {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.48);
+    line-height: 1.6;
+    padding-left: 1rem;
+    position: relative;
+}
+
+.help-ai-list li::before {
+    content: '>';
+    position: absolute;
+    left: 0;
+    color: #00ffb4;
+    opacity: 0.6;
+}
+
+.help-ai-list li strong {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* ====================== TOAST INDICE NIVEAU ====================== */
+
+#levelHint {
+    position: fixed;
+    bottom: calc(5vh + 50px);
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    z-index: 350;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.65rem 1.2rem 0.65rem 0.9rem;
+    background: rgba(4, 12, 10, 0.92);
+    border: 1px solid rgba(0, 255, 180, 0.28);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    max-width: 90vw;
+    white-space: nowrap;
+}
+
+#levelHint.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+#levelHint.hiding {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+}
+
+.hint-icon {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #00ffb4;
+    border: 1px solid rgba(0, 255, 180, 0.5);
+    border-radius: 50%;
+    width: 1.2rem;
+    height: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    text-shadow: 0 0 8px rgba(0, 255, 180, 0.5);
+}
+
+.hint-text {
+    color: rgba(255, 255, 255, 0.65);
+}

@@ -1,5 +1,6 @@
 import Niveau from "./Niveau.js";
 import Hud from "./Hud.js";
+import SoundManager from "./SoundManager.js";
 
 // ====================== INIT ======================
 var canvas = document.getElementById("renderCanvas");
@@ -7,6 +8,10 @@ var engine = new BABYLON.Engine(canvas, true, { stencil: false }, true);
 var scene = createScene(engine, canvas);
 
 scene.currentLevel = null;
+
+// Initialise le gestionnaire de son
+const soundManager = new SoundManager();
+window.soundManager = soundManager;
 
 
 const cheminNiveau = "./resources/niveaux/";
@@ -43,6 +48,7 @@ hud.onLevelSelect = () => {
     scene.currentLevel = null;
     const phaseButton = document.getElementById("phaseButton");
     if (phaseButton) phaseButton.style.display = "none";
+    soundManager.playMenuMusic();
     hud.showLevelSelect();
 };
 
@@ -104,6 +110,7 @@ function createScene(engine, canvas) {
 async function initGame(scene) {
     engine.displayLoadingUI = function() {};
 
+
     console.log("Chargement global de Recast...");
     await Recast();
 
@@ -118,7 +125,16 @@ async function initGame(scene) {
     hideLoadingView();
 
     // On affiche l'écran de sélection au démarrage
+    if(window.soundManager)
+    {
+        window.soundManager.playMenuMusic();
+    }
+    
     await hud.showLevelSelect();
+    
+    // Initialise le gestionnaire de son
+    await window.soundManager.init();
+    window.soundManager.playMenuMusic();
 }
 
 // ====================== CHARGEMENT DE NIVEAU ======================
@@ -136,6 +152,12 @@ async function chargerNiveau(number, scene) {
 
         scene.currentLevel = new Niveau(scene, levelData);
         await scene.currentLevel.build();
+
+        // Joue la musique du niveau
+        if(window.soundManager)
+        {
+            window.soundManager.playLevelMusic();
+        }
 
         console.log(`Niveau ${number} chargé !`);
     } catch (erreur) {

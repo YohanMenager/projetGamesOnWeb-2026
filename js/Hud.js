@@ -1,3 +1,69 @@
+export class AudioManager {
+    constructor() {
+        this._ctx = null;
+        this._enabled = true;
+    }
+
+    _getCtx() {
+        if (!this._ctx) {
+            this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        return this._ctx;
+    }
+
+    _tone(frequency, type, duration, gain, startDelay = 0) {
+        if (!this._enabled) return;
+        const ctx = this._getCtx();
+        const osc = ctx.createOscillator();
+        const vol = ctx.createGain();
+        osc.connect(vol);
+        vol.connect(ctx.destination);
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, ctx.currentTime + startDelay);
+        vol.gain.setValueAtTime(gain, ctx.currentTime + startDelay);
+        vol.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startDelay + duration);
+        osc.start(ctx.currentTime + startDelay);
+        osc.stop(ctx.currentTime + startDelay + duration);
+    }
+
+    playClick() {
+        this._tone(600, "square", 0.06, 0.15);
+    }
+
+    playStart() {
+        this._tone(330, "sawtooth", 0.08, 0.12, 0.00);
+        this._tone(440, "sawtooth", 0.08, 0.12, 0.09);
+        this._tone(550, "sawtooth", 0.12, 0.15, 0.18);
+    }
+
+    playBotExit() {
+        this._tone(880, "sine", 0.15, 0.18, 0.00);
+        this._tone(1100, "sine", 0.15, 0.14, 0.12);
+    }
+
+    playBotDeath() {
+        this._tone(220, "sawtooth", 0.2, 0.15, 0.00);
+        this._tone(150, "sawtooth", 0.25, 0.10, 0.10);
+    }
+
+    playVictory() {
+        [523, 659, 784, 1047].forEach((f, i) => {
+            this._tone(f, "sine", 0.25, 0.18, i * 0.12);
+        });
+    }
+
+    playFail() {
+        [330, 277, 220, 185].forEach((f, i) => {
+            this._tone(f, "sawtooth", 0.22, 0.13, i * 0.13);
+        });
+    }
+
+    toggle() {
+        this._enabled = !this._enabled;
+        return this._enabled;
+    }
+}
+
 export default class Hud {
     constructor() {
         this.currentLevel = 0;
@@ -8,12 +74,13 @@ export default class Hud {
         this.onLevelSelected = null;
         this.onRestart = null;
         this.onLevelSelect = null;
+        this.audio = new AudioManager();
 
         this._buildDom();
     }
 
     _buildDom() {
-        // --- Ecran de sélection --- (inchangé)
+        // --- Ecran de sélection ---
         this.selectScreen = document.createElement("div");
         this.selectScreen.id = "levelSelectScreen";
         this.selectScreen.innerHTML = `
@@ -22,6 +89,7 @@ export default class Hud {
             <div class="levels-grid" id="levelsGrid">
                 <p class="levels-loading">CHARGEMENT...</p>
             </div>
+            <button class="help-open-btn-prominent" id="helpBtnSelect" aria-label="Manuel de jeu">Manuel de jeu</button>
         `;
         document.body.appendChild(this.selectScreen);
 
@@ -52,6 +120,8 @@ export default class Hud {
                     </div>
                 </div>
                 <button class="hud-menu-btn" id="hudMenuBtn">Menu</button>
+                <button class="hud-help-btn" id="hudHelpBtn" aria-label="Aide">?</button>
+                <button class="hud-sound-btn" id="hudSoundBtn" aria-label="Son">&#9834;</button>
             </div>
         `;
         document.body.appendChild(this.hudEl);
@@ -86,6 +156,101 @@ export default class Hud {
         `;
         document.body.appendChild(this.failScreen);
 
+        // --- Panneau d'aide ---
+        this.helpPanel = document.createElement("div");
+        this.helpPanel.id = "helpOverlay";
+        this.helpPanel.innerHTML = `
+            <div class="help-panel" role="dialog" aria-modal="true" aria-label="Aide">
+                <button class="help-close-btn" id="helpCloseBtn" aria-label="Fermer">&#x2715;</button>
+                <div class="help-header">
+                    <span class="help-title-accent">S</span> BOTS
+                    <div class="help-title-sub">Manuel de jeu</div>
+                </div>
+
+                <div class="help-sections">
+                    <section class="help-section">
+                        <h3 class="help-section-title">Principe</h3>
+                        <p class="help-section-text">Aménagez le niveau durant la phase de préparation pour que les robots atteignent la sortie.</p>
+                    </section>
+
+                    <section class="help-section">
+                        <h3 class="help-section-title">
+                            <span class="help-badge phase-prep">Préparation</span>
+                        </h3>
+                        <p class="help-section-text">Interagissez avec les éléments du niveau — déplacez des obstacles, ouvrez des portes bleues. Cliquez sur <em>Démarrer</em> quand vous êtes prêt.</p>
+                    </section>
+
+                    <section class="help-section">
+                        <h3 class="help-section-title">
+                            <span class="help-badge phase-sim">Simulation</span>
+                        </h3>
+                        <p class="help-section-text">Les robots se déplacent automatiquement vers la sortie selon le chemin disponible.</p>
+                    </section>
+
+                    <div class="help-divider"></div>
+
+                    <section class="help-section">
+                        <h3 class="help-section-title">Éléments du niveau</h3>
+                        <ul class="help-elements">
+                            <li class="help-element">
+                                <span class="help-element-icon obstacle"></span>
+                                <div>
+                                    <strong>Obstacles</strong>
+                                    <span>Pavés oranges transparents. Déplaçables par le joueur en phase de préparation.</span>
+                                </div>
+                            </li>
+                            <li class="help-element">
+                                <span class="help-element-icon door-blue"></span>
+                                <div>
+                                    <strong>Portes bleues</strong>
+                                    <span>Ouvertes par le joueur en phase de préparation.</span>
+                                </div>
+                            </li>
+                            <li class="help-element">
+                                <span class="help-element-icon door-red"></span>
+                                <div>
+                                    <strong>Portes rouges</strong>
+                                    <span>Ouvertes par les bots s'ils possèdent une clé.</span>
+                                </div>
+                            </li>
+                            <li class="help-element">
+                                <span class="help-element-icon door-yellow"></span>
+                                <div>
+                                    <strong>Portes jaunes</strong>
+                                    <span>Ouvertes par les bots sans clé requise.</span>
+                                </div>
+                            </li>
+                            <li class="help-element">
+                                <span class="help-element-icon block"></span>
+                                <div>
+                                    <strong>Blocs</strong>
+                                    <span>Poussés par les bots jusqu'à un emplacement prédéfini.</span>
+                                </div>
+                            </li>
+                        </ul>
+                    </section>
+
+                    <div class="help-divider"></div>
+
+                    <section class="help-section">
+                        <h3 class="help-section-title">Intelligence des bots</h3>
+                        <ul class="help-ai-list">
+                            <li>Les bots se dirigent automatiquement vers les <strong>clés</strong> ou les <strong>blocs</strong> visibles.</li>
+                            <li>Un bot portant une clé se dirige vers les <strong>portes verrouillées</strong> visibles.</li>
+                            <li>Une fois leur chemin dégagé, ils avancent vers la <strong>sortie</strong>.</li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(this.helpPanel);
+
+        // --- Toast d'indice niveau ---
+        this.hintEl = document.createElement("div");
+        this.hintEl.id = "levelHint";
+        this.hintEl.innerHTML = `<span class="hint-icon">i</span><span class="hint-text" id="hintText"></span>`;
+        document.body.appendChild(this.hintEl);
+
         document.getElementById("victoryRestart").addEventListener("click", () => {
             this.hideVictory();
             if (this.onRestart) this.onRestart();
@@ -107,6 +272,25 @@ export default class Hud {
         document.getElementById("hudMenuBtn").addEventListener("click", () => {
             if (this.onLevelSelect) this.onLevelSelect();
         });
+
+        document.getElementById("hudHelpBtn").addEventListener("click", () => this.showHelp());
+        document.getElementById("helpBtnSelect").addEventListener("click", () => this.showHelp());
+        document.getElementById("helpCloseBtn").addEventListener("click", () => this.hideHelp());
+        this.helpPanel.addEventListener("click", (e) => {
+            if (e.target === this.helpPanel) this.hideHelp();
+        });
+
+        document.getElementById("hudSoundBtn").addEventListener("click", () => {
+            const on = this.audio.toggle();
+            document.getElementById("hudSoundBtn").style.opacity = on ? "1" : "0.3";
+        });
+
+        // Sons sur les boutons de navigation principaux
+        document.getElementById("victoryRestart").addEventListener("click", () => this.audio.playClick());
+        document.getElementById("victorySelect").addEventListener("click", () => this.audio.playClick());
+        document.getElementById("failRestart").addEventListener("click", () => this.audio.playClick());
+        document.getElementById("failSelect").addEventListener("click", () => this.audio.playClick());
+        document.getElementById("hudMenuBtn").addEventListener("click", () => this.audio.playClick());
     }
 
     // ====================== ECRAN DE SELECTION ====================== (inchangé)
@@ -138,6 +322,7 @@ export default class Hud {
                 <div class="level-label">Niveau</div>
             `;
             card.addEventListener("click", () => {
+                this.audio.playClick();
                 this.hideLevelSelect();
                 if (this.onLevelSelected) this.onLevelSelected(number);
             });
@@ -173,6 +358,7 @@ export default class Hud {
         this.botsExited++;
         this.botsRemaining--;
         this._updateBotsDisplay(true);
+        this.audio.playBotExit();
         return this.botsRemaining;
     }
 
@@ -181,6 +367,7 @@ export default class Hud {
         this.botsDead++;
         this.botsRemaining--;
         this._updateBotsDisplay(true);
+        this.audio.playBotDeath();
         return this.botsRemaining;
     }
 
@@ -216,9 +403,39 @@ export default class Hud {
         }
     }
 
+    // ====================== INDICE NIVEAU ======================
+
+    showHint(text) {
+        if (this._hintTimeout) clearTimeout(this._hintTimeout);
+        document.getElementById("hintText").textContent = text;
+        this.hintEl.classList.remove("hiding");
+        this.hintEl.classList.add("visible");
+        // this._hintTimeout = setTimeout(() => this.hideHint(), 5000);
+    }
+
+    hideHint() {
+        this.hintEl.classList.add("hiding");
+        setTimeout(() => {
+            this.hintEl.classList.remove("visible", "hiding");
+        }, 500);
+    }
+
+    // ====================== AIDE ======================
+
+    showHelp() {
+        this.helpPanel.style.display = "flex";
+        requestAnimationFrame(() => this.helpPanel.classList.add("visible"));
+    }
+
+    hideHelp() {
+        this.helpPanel.classList.remove("visible");
+        setTimeout(() => { this.helpPanel.style.display = "none"; }, 300);
+    }
+
     // ====================== VICTOIRE / ECHEC ======================
 
     showVictory() {
+        this.audio.playVictory();
         const sub = this.victoryScreen.querySelector(".victory-sub");
         if (sub) {
             sub.textContent = this.botsExited === this.totalBots
@@ -235,6 +452,7 @@ export default class Hud {
     }
 
     showFail() {
+        this.audio.playFail();
         this.failScreen.style.display = "flex";
         requestAnimationFrame(() => this.failScreen.classList.add("visible"));
     }

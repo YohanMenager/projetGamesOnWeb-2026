@@ -218,6 +218,12 @@ export default class Bot {
         this.isDying = true;
         this.stop();
         this.playAnimation("Death", false);
+
+        // Joue le son de mort du robot
+        if (window.soundManager) {
+            window.soundManager.play("robot-die");
+        }
+
         setTimeout(() => {
             if (this.scene.currentLevel) this.scene.currentLevel._botDies(this);
         }, 1200);

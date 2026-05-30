@@ -41,6 +41,10 @@ async build() {
     this.spawnEnnemis();
 
     this.isPreparationPhase = true;
+
+    if (this.levelData.hint && window.gameHud) {
+        window.gameHud.showHint(this.levelData.hint);
+    }
 }
 
     buildEnvironment() {
@@ -48,7 +52,12 @@ async build() {
 
         const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: size, height: size }, this.scene);
         const groundMat = new BABYLON.PBRMaterial("gMat", this.scene);
-        groundMat.albedoColor = new BABYLON.Color3(0.1, 0.1, 0.12);
+        const floorTex = new BABYLON.Texture("./resources/textures/floor.jpg", this.scene);
+        floorTex.uScale = size / 4;
+        floorTex.vScale = size / 4;
+        groundMat.albedoTexture = floorTex;
+        groundMat.roughness = 0.8;
+        groundMat.metallic = 0.1;
         ground.material = groundMat;
         ground.isPickable = true;
         this.staticMeshes.push(ground);
@@ -56,6 +65,14 @@ async build() {
         const rampeMat = new BABYLON.StandardMaterial("rampMat", this.scene);
         rampeMat.diffuseColor = new BABYLON.Color3(1, 1, 1);
         rampeMat.specularColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+
+        // Matériau partagé pour tous les murs
+        this._wallMat = new BABYLON.StandardMaterial("wallMat", this.scene);
+        const wallTex = new BABYLON.Texture("./resources/textures/wall.jpg", this.scene);
+        wallTex.uScale = 2;
+        wallTex.vScale = 1;
+        this._wallMat.diffuseTexture = wallTex;
+        this._wallMat.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
 
         this.createWall("wN", size, 1, 0, -size / 2);
         this.createWall("wS", size, 1, 0, size / 2);
@@ -119,6 +136,9 @@ async build() {
         const wall = BABYLON.MeshBuilder.CreateBox(name, { width: w, height: 3, depth: d }, this.scene);
         wall.position.set(x, 1.5, z);
         wall.isPickable = true;
+        if (this._wallMat) {
+            wall.material = this._wallMat;
+        }
         this.staticMeshes.push(wall);
         this.collisionMeshes.push(wall);
     }
@@ -305,6 +325,7 @@ async build() {
         });
         this.scene.ennemis.forEach(ennemi => ennemi.demarrer());
         this.isPreparationPhase = false;
+        window.gameHud.hideHint(this.levelData.hint);
     }
 
     update(deltaTime) {
@@ -324,7 +345,7 @@ async build() {
 
         // Detection des bots qui atteignent la sortie
         this._checkExits();
-        if (window.gameHud && window.gameHud.botsExited > 0 && this.scene.bots.length > 0) {
+        if (this.scene.bots.length > 0) {
             this._checkStagnation(deltaTime);
         }
     }
@@ -474,6 +495,10 @@ async build() {
     destroy() {
         console.log("=== DESTRUCTION DU NIVEAU ===");
 
+        if (this.levelData.hint && window.gameHud) {
+        window.gameHud.hideHint(this.levelData.hint);
+        }
+
         this.scene.bots.forEach(bot => {
             bot.stop();
             if (bot.visualMesh) bot.visualMesh.dispose();
@@ -576,7 +601,12 @@ async build() {
         this._stagnationTimer += deltaTime;
         if (this._stagnationTimer >= this._stagnationThreshold) {
             this._stagnationTimer = 0;
-            setTimeout(() => window.gameHud.showVictory(), 800);
+            if (!window.gameHud) return;
+            if (window.gameHud.botsExited > 0) {
+                setTimeout(() => window.gameHud.showVictory(), 800);
+            } else {
+                setTimeout(() => window.gameHud.showFail(), 800);
+            }
         }
     }
 }

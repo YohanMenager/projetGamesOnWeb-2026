@@ -73,6 +73,11 @@ export default class Cle {
         this.carrierBot = bot;
         bot.hasKey = true;
 
+        // Joue le son de clé ramassée
+        if (window.soundManager) {
+            window.soundManager.play("key");
+        }
+
         // On attache le hitbox (et donc le visuel) au bot
         this.mesh.setParent(bot.hitbox);
         this.mesh.position = new BABYLON.Vector3(0, 5, 0);

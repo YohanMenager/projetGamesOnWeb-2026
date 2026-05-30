@@ -1,6 +1,7 @@
 {
     "size": 40,
     "exit": { "x": 16, "z": -16, "width": 4, "depth": 4 },
+    "hint": "4. sauve ton ami !",
     "walls": [
         { "name": "inner1", "x": 7, "z": -11, "width": 9, "depth": 7 },
         { "name": "inner2", "x": -14, "z": -11, "width": 12, "depth": 18 },
@@ -21,7 +22,7 @@
         { "id": 1, "startX": -15, "startZ": 0, "targetX": 16, "targetZ": 0 }
     ],
     "enemies": [
-        { "id": 0, "startX": 8,  "startZ": -18, "patrolPoints": [ { "x": 8, "z": -18 }, { "x": 10, "z": -18 } ] }
+        { "id": 0, "startX": 8,  "startZ": -18, "patrolPoints": [ { "x": 8, "z": -18 }, { "x": 6, "z": -18 } ] }
     ]
 
 }

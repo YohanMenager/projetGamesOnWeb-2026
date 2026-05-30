@@ -1,6 +1,7 @@
 {
     "size": 40,
     "exit": { "x": 16, "z": 0, "width": 4, "depth": 4 },
+    "hint": "3. bloque le méchant",
     "walls": [
         { "name": "inner1", "x": 0, "z": 11, "width": 40, "depth": 17 },
         { "name": "inner3", "x": 0, "z": -15, "width": 40, "depth": 12 },

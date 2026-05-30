@@ -85,6 +85,11 @@ export default class Bloc {
         this.attachedBot = bot;
         bot.attachedBloc = this;
 
+        // Joue le son de ramassage
+        if (window.soundManager) {
+            window.soundManager.play("block-pickup");
+        }
+
         bot.setTarget(this.targetPosition);
     }
 
@@ -105,6 +110,11 @@ export default class Bloc {
         if (this.isLocked) return;
         this.isLocked = true;
         this.attachedBot = null;
+
+        // Joue le son de dépôt
+        if (window.soundManager) {
+            window.soundManager.play("block-putdown");
+        }
 
         // 1. Positionnement final
         this.mesh.position.copyFrom(this.targetZoneMesh.position);

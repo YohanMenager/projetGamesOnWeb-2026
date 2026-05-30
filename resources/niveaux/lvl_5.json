@@ -1,0 +1,34 @@
+{
+    "size": 40,
+    "exit": { "x": 7, "z": 18, "width": 4, "depth": 4 },
+    "hint": "5. Où va ce bloc ?",
+    "walls": [
+        { "name": "inner1", "x": 15, "z": 11, "width": 1, "depth": 10 },
+        { "name": "inner2", "x": 15, "z": -13, "width": 1, "depth": 15 },
+        { "name": "inner3", "x": 10, "z": 15, "width": 1, "depth": 10 },
+        { "name": "inner4", "x": 11, "z": 0, "width": 18, "depth": 1 },
+        { "name": "inner5", "x": -0.5, "z": -5, "width": 1, "depth": 31 },
+        { "name": "inner6", "x": 8, "z": -7, "width": 6, "depth": 13 },
+        { "name": "inner7", "x": 4, "z": 15, "width": 1, "depth": 10 },
+        { "name": "inner8", "x": -5, "z": 2, "width": 8, "depth": 1 },
+        { "name": "inner9", "x": -9, "z": 6, "width": 1, "depth": 9 },
+        { "name": "inner10", "x": -9, "z": 17, "width": 2, "depth": 6 }
+    ],
+    "interactables": [
+        { "type": "obstacle", "x": -15, "z": 15, "width": 10, "depth": 1 },
+        { "type": "porte", "x": 12, "z": 15, "width": 4.9, "depth": 1, "owner": "player"},
+        { "type": "porte", "x": 18, "z": 15, "width": 4.9, "depth": 1, "owner": "player"},
+        { "type": "bloc", "startX": 18, "startZ": 5, "targetX": 1, "targetZ": 0, "width": 2, "depth": 2 },
+        { "type": "porte", "x": 7, "z": 15, "width": 4.9, "depth": 1, "owner": "bot", "requiresKey": true },
+        { "type": "cle", "x":-18, "z": 18 }
+    ],
+    "bots": [
+        { "id": 0, "startX": 15, "startZ": 18, "targetX": 7, "targetZ": 18 },
+        { "id": 1, "startX": -15, "startZ": -18, "targetX": 7, "targetZ": 18 }
+    ],
+    "enemies": [
+        { "id": 0, "startX": 17,  "startZ": -17, "patrolPoints": [ { "x": 17, "z": -17 }, { "x": 7, "z": 18 } ] },
+        { "id": 1, "startX": -5,  "startZ": 5, "patrolPoints": [ { "x": -5, "z": 6 } ] }
+    ]
+
+}
