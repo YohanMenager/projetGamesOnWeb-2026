@@ -12,7 +12,7 @@
         { "name": "inner7", "x": 4, "z": 15, "width": 1, "depth": 10 },
         { "name": "inner8", "x": -5, "z": 2, "width": 8, "depth": 1 },
         { "name": "inner9", "x": -9, "z": 6, "width": 1, "depth": 9 },
-        { "name": "inner10", "x": -9, "z": 17, "width": 2, "depth": 6 }
+        { "name": "inner10", "x": -10, "z": 18, "width": 1, "depth": 5 }
     ],
     "interactables": [
         { "type": "obstacle", "x": -15, "z": 15, "width": 10, "depth": 1 },
